@@ -43,14 +43,17 @@ export default function RootLayout() {
               animation: 'slide_from_right',
             }}
           >
+            {/* Main Entry Point */}
+            <Stack.Screen name="index" />
+            
             {/* Auth Screens */}
-            <Stack.Screen name="login" />
-            <Stack.Screen name="register" />
-            <Stack.Screen name="phone-verification" />
-            <Stack.Screen name="mobile-verify" />
+            <Stack.Screen name="(auth)" />
             
             {/* Main App */}
             <Stack.Screen name="(tabs)" />
+            
+            {/* Onboarding */}
+            <Stack.Screen name="onboarding-complete" />
             
             {/* Other screens */}
             <Stack.Screen name="+not-found" />

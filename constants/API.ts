@@ -33,6 +33,7 @@ export const BACKEND_ENDPOINTS = {
   // Stripe Onboarding
   STRIPE: {
     ONBOARD: '/auth/onboard-stripe',
+    MERCHANT_ONBOARD: '/auth/merchant-onboard-stripe',
     COMPLETE_ONBOARDING: '/auth/complete-onboarding',
   },
   

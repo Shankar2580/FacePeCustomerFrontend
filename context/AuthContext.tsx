@@ -20,6 +20,8 @@ interface AuthContextType {
   sendMobileVerification: (phoneNumber: string) => Promise<boolean>;
   verifyMobile: (code: string) => Promise<boolean>;
   completeStripeOnboarding: (redirectUrl: string) => Promise<boolean>;
+  startMerchantOnboarding: () => Promise<string | null>;
+  refreshUserProfile: () => Promise<void>;
   setRegistrationStep: (step: 'phone' | 'details' | 'mobile_verify' | 'stripe' | 'complete') => void;
   setEmailToken: (token: string) => void;
 }
@@ -72,31 +74,50 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           } else {
             throw new Error('Invalid profile data received');
           }
-        } catch (error) {
-          // Tokens are invalid or profile is incomplete, clear storage
-          console.log('Stored tokens are invalid or profile incomplete, clearing data:', error);
-          await clearAllData();
-          setIsAuthenticated(false);
-          setUser(null);
+        } catch (error: any) {
+          // Handle authentication errors
+          console.log('Authentication verification failed:', error);
+          
+          // If it's a 401 (Unauthorized) or 403 (Forbidden), definitely logout
+          if (error?.response?.status === 401 || error?.response?.status === 403) {
+            console.log('Invalid credentials detected - forcing logout');
+            await forceLogout();
+            return;
+          }
+          
+          // For other errors, still clear data but log differently
+          console.log('Profile verification failed, clearing stored data');
+          await forceLogout();
         }
       } else {
         // No tokens or user data found, user needs to log in
-        console.log('No valid authentication data found, user needs to log in');
-        if (tokens || userData) {
-          // Partial data found, clear it to avoid confusion
-          await clearAllData();
-        }
-        setIsAuthenticated(false);
-        setUser(null);
+        console.log('No valid authentication data found');
+        await forceLogout();
       }
     } catch (error) {
-      console.error('Error checking auth status:', error);
+      console.error('Critical error checking auth status:', error);
       // Clear any potentially corrupted data
+      await forceLogout();
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const forceLogout = async () => {
+    try {
+      console.log('Forcing user logout and clearing all data');
       await clearAllData();
       setIsAuthenticated(false);
       setUser(null);
-    } finally {
-      setIsLoading(false);
+      setEmailToken(null);
+      setRegistrationStep('phone');
+    } catch (error) {
+      console.error('Error during force logout:', error);
+      // Even if clearing fails, reset state
+      setIsAuthenticated(false);
+      setUser(null);
+      setEmailToken(null);
+      setRegistrationStep('phone');
     }
   };
 
@@ -267,6 +288,53 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
+  const startMerchantOnboarding = async (): Promise<string | null> => {
+    try {
+      setIsLoading(true);
+      const response = await api.stripe.merchantOnboard();
+      
+      if (response.status === 200 && response.data.onboarding_url) {
+        return response.data.onboarding_url;
+      }
+      return null;
+    } catch (error) {
+      console.error('Merchant onboarding error:', error);
+      return null;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const refreshUserProfile = async (): Promise<void> => {
+    try {
+      if (!isAuthenticated) return;
+      
+      // First sync Stripe status to ensure latest data
+      try {
+        await api.stripe.syncStatus();
+        console.log('✅ Stripe status synced');
+      } catch (syncError) {
+        console.warn('⚠️ Stripe sync failed, continuing with cached data:', syncError);
+      }
+      
+      const profileResponse = await api.merchant.getProfile();
+      const userData: UserData = {
+        id: profileResponse.data.merchant_id,
+        email: profileResponse.data.email,
+        business_name: profileResponse.data.business_name,
+        mobile_number: profileResponse.data.mobile_number,
+        mobile_verified: profileResponse.data.mobile_verified,
+        stripe_account_status: profileResponse.data.stripe_account_status,
+        payout_enabled: profileResponse.data.payout_enabled,
+      };
+      
+      await storeUserData(userData);
+      setUser(userData);
+    } catch (error) {
+      console.error('Error refreshing user profile:', error);
+    }
+  };
+
   const value: AuthContextType = {
     isAuthenticated,
     user,
@@ -279,6 +347,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     sendMobileVerification,
     verifyMobile,
     completeStripeOnboarding,
+    startMerchantOnboarding,
+    refreshUserProfile,
     setRegistrationStep,
     setEmailToken,
   };

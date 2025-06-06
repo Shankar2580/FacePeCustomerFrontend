@@ -1,6 +1,6 @@
 import axios, { AxiosResponse, AxiosError, InternalAxiosRequestConfig } from 'axios';
 import { API_CONFIG, BACKEND_ENDPOINTS, FACE_API_ENDPOINTS } from '../constants/API';
-import { getStoredTokens, storeTokens, clearTokens } from './storage';
+import { getStoredTokens, storeTokens, clearTokens, clearAllData } from './storage';
 
 // Create axios instances
 const backendAPI = axios.create({
@@ -57,10 +57,16 @@ backendAPI.interceptors.response.use(
           return backendAPI(originalRequest);
         }
       } catch (refreshError) {
-        await clearTokens();
-        // Redirect to login
-        // You can implement navigation here
+        console.log('Token refresh failed, clearing all data:', refreshError);
+        await clearAllData();
+        // Force logout - the AuthContext will handle the redirect
       }
+    }
+    
+    // For any 401/403 error that reaches here, clear data
+    if (error.response?.status === 401 || error.response?.status === 403) {
+      console.log('Authentication error detected, clearing all data');
+      await clearAllData();
     }
     
     return Promise.reject(error);
@@ -164,6 +170,63 @@ export const authAPI = {
 export const stripeAPI = {
   onboard: (data: StripeOnboardRequest): Promise<AxiosResponse<{ onboarding_url: string }>> =>
     backendAPI.post(BACKEND_ENDPOINTS.STRIPE.ONBOARD, data),
+    
+  merchantOnboard: (): Promise<AxiosResponse<{ onboarding_url: string }>> =>
+    backendAPI.post(BACKEND_ENDPOINTS.STRIPE.MERCHANT_ONBOARD),
+    
+  getStatus: (): Promise<AxiosResponse<{
+    has_stripe_account: boolean;
+    stripe_account_id?: string;
+    onboarding_status: string;
+    can_accept_payments: boolean;
+    can_receive_payouts: boolean;
+    fully_onboarded: boolean;
+    next_action: string;
+    account_details: {
+      email: string;
+      country: string;
+      currency: string;
+      business_name: string;
+      support_email: string;
+      has_bank_account: boolean;
+      bank_accounts_count: number;
+    };
+    requirements: {
+      currently_due: string[];
+      eventually_due: string[];
+      past_due: string[];
+      pending_verification: string[];
+      disabled_reason: string | null;
+    };
+    individual_info: {
+      first_name: string;
+      last_name: string;
+      email: string;
+      phone: string;
+      verification_status: string;
+    };
+    last_updated: string;
+  }>> =>
+    backendAPI.get('/auth/stripe-status'),
+    
+  syncStatus: (): Promise<AxiosResponse<{
+    success: boolean;
+    message: string;
+    has_stripe_account: boolean;
+    stripe_account_id?: string;
+    old_status?: string;
+    new_status?: string;
+    onboarding_status: string;
+    can_accept_payments?: boolean;
+    can_receive_payouts?: boolean;
+    fully_onboarded?: boolean;
+    requirements?: {
+      currently_due: string[];
+      past_due: string[];
+      pending_verification: string[];
+    };
+  }>> =>
+    backendAPI.post('/auth/sync-stripe-status'),
 };
 
 // Merchant API

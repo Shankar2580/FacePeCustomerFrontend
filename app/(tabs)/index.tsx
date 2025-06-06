@@ -15,6 +15,7 @@ import { router } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
 import apiService from '@/services/api';
 import Colors from '@/constants/Colors';
+import { Linking } from 'react-native';
 
 interface DashboardData {
   todayEarnings: number;
@@ -29,10 +30,11 @@ interface DashboardData {
 }
 
 export default function HomeScreen() {
-  const { user, logout } = useAuth();
+  const { user, logout, startMerchantOnboarding, refreshUserProfile } = useAuth();
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [onboardingLoading, setOnboardingLoading] = useState(false);
 
   const fetchDashboardData = async () => {
     try {
@@ -81,7 +83,27 @@ export default function HomeScreen() {
   const onRefresh = async () => {
     setRefreshing(true);
     await fetchDashboardData();
+    await refreshUserProfile();
     setRefreshing(false);
+  };
+
+  const handleStripeOnboarding = async () => {
+    try {
+      setOnboardingLoading(true);
+      const onboardingUrl = await startMerchantOnboarding();
+      
+      if (onboardingUrl) {
+        // Open Stripe onboarding in browser
+        await Linking.openURL(onboardingUrl);
+      } else {
+        Alert.alert('Error', 'Failed to start onboarding process. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error starting onboarding:', error);
+      Alert.alert('Error', 'Failed to start onboarding process. Please try again.');
+    } finally {
+      setOnboardingLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -163,6 +185,53 @@ export default function HomeScreen() {
         }
         showsVerticalScrollIndicator={false}
       >
+        {/* Stripe Onboarding Banner */}
+        {user && user.stripe_account_status !== 'COMPLETE' && (
+          <View style={styles.onboardingBanner}>
+            <LinearGradient
+              colors={[Colors.warning, '#F59E0B']}
+              style={styles.onboardingGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            >
+              <View style={styles.onboardingContent}>
+                <View style={styles.onboardingLeft}>
+                  <Ionicons name="warning" size={24} color={Colors.text.white} />
+                  <View style={styles.onboardingText}>
+                    <Text style={styles.onboardingTitle}>Setup Required</Text>
+                    <Text style={styles.onboardingSubtitle}>
+                      Complete Stripe onboarding to start accepting payments
+                    </Text>
+                    <Text style={styles.statusDebug}>
+                      Status: {user.stripe_account_status}
+                    </Text>
+                  </View>
+                </View>
+                <View style={styles.onboardingButtons}>
+                  <TouchableOpacity
+                    style={[styles.onboardingButton, styles.refreshButton]}
+                    onPress={onRefresh}
+                    disabled={refreshing}
+                  >
+                    <Ionicons name="refresh" size={16} color={Colors.text.white} />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.onboardingButton}
+                    onPress={handleStripeOnboarding}
+                    disabled={onboardingLoading}
+                  >
+                    <Text style={styles.onboardingButtonText}>
+                      {onboardingLoading ? 'Loading...' : 'Setup Now'}
+                    </Text>
+                    {!onboardingLoading && (
+                      <Ionicons name="arrow-forward" size={16} color={Colors.text.white} />
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </LinearGradient>
+          </View>
+        )}
         {/* Today's Summary Cards */}
         <View style={styles.summarySection}>
           <Text style={styles.sectionTitle}>Today's Summary</Text>
@@ -320,6 +389,74 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     paddingHorizontal: 20,
+  },
+  onboardingBanner: {
+    marginTop: 20,
+    marginBottom: 20,
+    borderRadius: 16,
+    overflow: 'hidden',
+    elevation: 4,
+    shadowColor: Colors.shadow.medium,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+  },
+  onboardingGradient: {
+    padding: 20,
+  },
+  onboardingContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  onboardingLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  onboardingText: {
+    marginLeft: 12,
+    flex: 1,
+  },
+  onboardingTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: Colors.text.white,
+    marginBottom: 2,
+  },
+  onboardingSubtitle: {
+    fontSize: 14,
+    color: Colors.text.white,
+    opacity: 0.9,
+  },
+  statusDebug: {
+    fontSize: 12,
+    color: Colors.text.white,
+    opacity: 0.8,
+    marginTop: 4,
+    fontFamily: 'monospace',
+  },
+  onboardingButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  onboardingButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+    marginLeft: 12,
+  },
+  refreshButton: {
+    paddingHorizontal: 12,
+  },
+  onboardingButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.text.white,
+    marginRight: 6,
   },
   summarySection: {
     marginTop: 24,
