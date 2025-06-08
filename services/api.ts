@@ -234,8 +234,10 @@ export const merchantAPI = {
   getProfile: (): Promise<AxiosResponse<any>> =>
     backendAPI.get(BACKEND_ENDPOINTS.MERCHANT.PROFILE),
     
-  getTransactions: (): Promise<AxiosResponse<any[]>> =>
-    backendAPI.get(BACKEND_ENDPOINTS.MERCHANT.TRANSACTIONS),
+  getTransactions: (statusFilter?: string): Promise<AxiosResponse<any[]>> => {
+    const params = statusFilter ? { status_filter: statusFilter } : {};
+    return backendAPI.get(BACKEND_ENDPOINTS.MERCHANT.TRANSACTIONS, { params });
+  },
     
   getPaymentRequests: (): Promise<AxiosResponse<any[]>> =>
     backendAPI.get(BACKEND_ENDPOINTS.MERCHANT.PAYMENT_REQUESTS),

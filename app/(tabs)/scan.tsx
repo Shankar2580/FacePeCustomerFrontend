@@ -10,7 +10,7 @@ import {
   Platform,
   ScrollView,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -26,6 +26,7 @@ interface FaceMatch {
 
 export default function ScanScreen() {
   const { user } = useAuth();
+  const insets = useSafeAreaInsets();
   const [amount, setAmount] = useState('');
   const [loading, setLoading] = useState(false);
   const [faceMatches, setFaceMatches] = useState<FaceMatch[]>([]);
@@ -178,7 +179,13 @@ export default function ScanScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.content}
       >
-        <ScrollView showsVerticalScrollIndicator={false}>
+        <ScrollView 
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingBottom: Math.max(insets.bottom + 80, 100) }
+          ]}
+        >
           {/* Amount Input */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Payment Amount</Text>
@@ -438,5 +445,8 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: Colors.text.white,
+  },
+  scrollContent: {
+    paddingBottom: 100,
   },
 }); 

@@ -34,12 +34,22 @@ export default function HistoryScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [activeFilter, setActiveFilter] = useState<FilterType>('all');
 
-  const fetchTransactions = async () => {
+  const fetchTransactions = async (statusFilter?: string, targetFilter?: FilterType) => {
     try {
-      const response = await apiService.merchant.getTransactions();
+      // Fetch with status filter for better performance, but for "all" case don't pass filter
+      const response = await apiService.merchant.getTransactions(statusFilter);
       const transactionData = response.data || [];
-      setTransactions(transactionData);
-      filterTransactions(transactionData, activeFilter);
+      
+      if (!statusFilter) {
+        // When fetching all transactions (no filter), store all and apply the target filter
+        setTransactions(transactionData);
+        const filterToApply = targetFilter || activeFilter;
+        filterTransactions(transactionData, filterToApply);
+      } else {
+        // When fetching with specific filter, set both full list and filtered list
+        setTransactions(transactionData);
+        setFilteredTransactions(transactionData);
+      }
     } catch (error) {
       console.error('Error fetching transactions:', error);
       Alert.alert('Error', 'Failed to load transaction history');
@@ -50,7 +60,11 @@ export default function HistoryScreen() {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await fetchTransactions();
+    if (activeFilter === 'all') {
+      await fetchTransactions(undefined, activeFilter);
+    } else {
+      await fetchTransactions(activeFilter);
+    }
     setRefreshing(false);
   };
 
@@ -67,15 +81,23 @@ export default function HistoryScreen() {
 
   const handleFilterChange = (filter: FilterType) => {
     setActiveFilter(filter);
-    filterTransactions(transactions, filter);
+    // Fix: For "all" filter, fetch all transactions, for others fetch with specific filter
+    if (filter === 'all') {
+      fetchTransactions(undefined, filter); // Pass the target filter to ensure correct filtering
+    } else {
+      fetchTransactions(filter);
+    }
   };
 
   useEffect(() => {
-    fetchTransactions();
+    fetchTransactions(); // Fetch all transactions initially
   }, []);
 
   const formatCurrency = (amount: number) => {
-    return `₹${amount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
+    return `$${amount.toLocaleString('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
   };
 
   const formatDate = (dateString: string) => {
@@ -134,11 +156,11 @@ export default function HistoryScreen() {
     }
   };
 
-  const filters: { key: FilterType; label: string; count: number }[] = [
-    { key: 'all', label: 'All', count: transactions.length },
-    { key: 'completed', label: 'Completed', count: transactions.filter(t => t.status.toLowerCase() === 'completed').length },
-    { key: 'pending', label: 'Pending', count: transactions.filter(t => t.status.toLowerCase() === 'pending').length },
-    { key: 'failed', label: 'Failed', count: transactions.filter(t => t.status.toLowerCase() === 'failed').length },
+  const filters: { key: FilterType; label: string }[] = [
+    { key: 'all', label: 'All' },
+    { key: 'completed', label: 'Completed' },
+    { key: 'pending', label: 'Pending' },
+    { key: 'failed', label: 'Failed' },
   ];
 
   if (loading) {
@@ -188,19 +210,6 @@ export default function HistoryScreen() {
               ]}>
                 {filter.label}
               </Text>
-              {filter.count > 0 && (
-                <View style={[
-                  styles.filterBadge,
-                  activeFilter === filter.key && styles.filterBadgeActive
-                ]}>
-                  <Text style={[
-                    styles.filterBadgeText,
-                    activeFilter === filter.key && styles.filterBadgeTextActive
-                  ]}>
-                    {filter.count}
-                  </Text>
-                </View>
-              )}
             </TouchableOpacity>
           ))}
         </ScrollView>
@@ -334,7 +343,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background.card,
     borderWidth: 1,
     borderColor: Colors.border.light,
-    gap: 6,
   },
   filterTabActive: {
     backgroundColor: Colors.primary,
@@ -346,25 +354,6 @@ const styles = StyleSheet.create({
     color: Colors.text.secondary,
   },
   filterTabTextActive: {
-    color: Colors.text.white,
-  },
-  filterBadge: {
-    backgroundColor: Colors.background.overlay,
-    borderRadius: 10,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    minWidth: 20,
-    alignItems: 'center',
-  },
-  filterBadgeActive: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-  },
-  filterBadgeText: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: Colors.text.secondary,
-  },
-  filterBadgeTextActive: {
     color: Colors.text.white,
   },
   content: {

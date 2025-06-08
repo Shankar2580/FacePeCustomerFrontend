@@ -111,7 +111,10 @@ export default function HomeScreen() {
   }, []);
 
   const formatCurrency = (amount: number) => {
-    return `₹${amount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
+    return `$${amount.toLocaleString('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
   };
 
   const getStatusColor = (status: string) => {
