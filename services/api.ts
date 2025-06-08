@@ -240,14 +240,14 @@ export const merchantAPI = {
   getPaymentRequests: (): Promise<AxiosResponse<any[]>> =>
     backendAPI.get(BACKEND_ENDPOINTS.MERCHANT.PAYMENT_REQUESTS),
     
-  initiatePayment: (data: PaymentInitiateRequest): Promise<AxiosResponse<any>> =>
-    backendAPI.post(BACKEND_ENDPOINTS.PAYMENTS.INITIATE, data),
+  initiatePayment: (merchantId: string, data: PaymentInitiateRequest): Promise<AxiosResponse<any>> =>
+    backendAPI.post(BACKEND_ENDPOINTS.PAYMENTS.INITIATE(merchantId), data),
 };
 
 // Face Recognition API
 export const faceRecognitionAPI = {
   verifyFace: (imageFile: FormData): Promise<AxiosResponse<FaceVerificationResponse>> =>
-    faceAPI.post(FACE_API_ENDPOINTS.VERIFY, imageFile, {
+    backendAPI.post('/merchants/verify-face', imageFile, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },

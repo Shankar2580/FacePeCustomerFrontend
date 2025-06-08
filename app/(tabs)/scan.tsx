@@ -30,84 +30,80 @@ export default function ScanScreen() {
   const [loading, setLoading] = useState(false);
   const [faceMatches, setFaceMatches] = useState<FaceMatch[]>([]);
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
-  const [demoMode, setDemoMode] = useState(__DEV__); // Enable demo mode in development
 
-  const pickImage = async (source: 'camera' | 'gallery') => {
+  const takePicture = async () => {
+    // Validate amount first
+    if (!amount.trim()) {
+      Alert.alert('Amount Required', 'Please enter amount first');
+      return;
+    }
+
+    const amountValue = parseFloat(amount);
+    if (isNaN(amountValue) || amountValue <= 0) {
+      Alert.alert('Invalid Amount', 'Please enter a valid amount');
+      return;
+    }
+
     try {
-      let result;
-      
-      if (source === 'camera') {
-        const permission = await ImagePicker.requestCameraPermissionsAsync();
-        if (!permission.granted) {
-          Alert.alert('Permission Required', 'Camera permission is needed to take photos');
-          return;
-        }
-        result = await ImagePicker.launchCameraAsync({
-          mediaTypes: ImagePicker.MediaTypeOptions.Images,
-          allowsEditing: true,
-          aspect: [1, 1],
-          quality: 0.8,
-        });
-      } else {
-        const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (!permission.granted) {
-          Alert.alert('Permission Required', 'Gallery permission is needed to select photos');
-          return;
-        }
-        result = await ImagePicker.launchImageLibraryAsync({
-          mediaTypes: ImagePicker.MediaTypeOptions.Images,
-          allowsEditing: true,
-          aspect: [1, 1],
-          quality: 0.8,
-        });
+      const permission = await ImagePicker.requestCameraPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert('Permission Required', 'Camera permission is needed to take photos');
+        return;
       }
+
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
 
       if (!result.canceled && result.assets[0]) {
         await processFaceImage(result.assets[0].uri);
       }
     } catch (error) {
-      console.error('Error picking image:', error);
-      Alert.alert('Error', 'Failed to process image');
+      console.error('Error taking picture:', error);
+      Alert.alert('Error', 'Failed to take picture');
     }
   };
 
   const processFaceImage = async (imageUri: string) => {
-    if (!amount.trim()) {
-      Alert.alert('Error', 'Please enter an amount first');
-      return;
-    }
-
     setLoading(true);
     
     try {
-      if (demoMode) {
-        // Demo mode - simulate face matches
-        const demoMatches: FaceMatch[] = [
-          { user_id: '1', name: 'John Doe', similarity: 0.95 },
-          { user_id: '2', name: 'Jane Smith', similarity: 0.87 },
-        ];
-        setFaceMatches(demoMatches);
-      } else {
-        // Real face recognition
-        const formData = new FormData();
-        formData.append('image', {
-          uri: imageUri,
-          type: 'image/jpeg',
-          name: 'face.jpg',
-        } as any);
+      // Call backend face verification API
+      const formData = new FormData();
+      formData.append('file', {
+        uri: imageUri,
+        type: 'image/jpeg',
+        name: 'face.jpg',
+      } as any);
 
-        const response = await apiService.face.verifyFace(formData);
+      const response = await apiService.face.verifyFace(formData);
+      
+      if (response.data.match_found && response.data.matches.length > 0) {
+        // Filter matches with similarity >= 70%
+        const validMatches = response.data.matches.filter(match => match.similarity >= 0.7);
         
-        if (response.data.match_found && response.data.matches.length > 0) {
-          setFaceMatches(response.data.matches);
-        } else {
-          Alert.alert('No Match', 'No matching face found in database');
+        if (validMatches.length === 0) {
+          Alert.alert('No Match', 'No matching face found with 70% or higher similarity');
           setFaceMatches([]);
+          return;
         }
+
+        setFaceMatches(validMatches);
+
+        // If only one match, auto-select it
+        if (validMatches.length === 1) {
+          setSelectedUser(validMatches[0].user_id);
+        }
+      } else {
+        Alert.alert('No Match', 'No matching face found in database');
+        setFaceMatches([]);
       }
     } catch (error) {
       console.error('Face verification error:', error);
-      Alert.alert('Error', 'Face verification failed');
+      Alert.alert('Error', 'Face verification failed. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -128,17 +124,22 @@ export default function ScanScreen() {
     setLoading(true);
     
     try {
-      const response = await apiService.merchant.initiatePayment({
+      if (!user?.id) {
+        Alert.alert('Error', 'Merchant information not available');
+        return;
+      }
+
+      const response = await apiService.merchant.initiatePayment(user.id, {
         user_id: selectedUser,
         face_scan_id: `scan_${Date.now()}`,
-        amount: amountValue * 100, // Convert to paise
-        currency: 'inr',
+        amount: amountValue * 100, // Convert to cents
+        currency: 'usd',
         description: `Payment by ${user?.business_name}`,
       });
 
       Alert.alert(
-        'Payment Successful',
-        `Payment of ₹${amountValue} processed successfully!`,
+        'Payment Initiated',
+        `Payment request of $${amountValue} has been sent to the customer!`,
         [
           {
             text: 'OK',
@@ -152,22 +153,10 @@ export default function ScanScreen() {
       );
     } catch (error) {
       console.error('Payment error:', error);
-      Alert.alert('Error', 'Payment processing failed');
+      Alert.alert('Error', 'Payment processing failed. Please try again.');
     } finally {
       setLoading(false);
     }
-  };
-
-  const showImagePicker = () => {
-    Alert.alert(
-      'Select Image',
-      'Choose how you want to capture the face',
-      [
-        { text: 'Camera', onPress: () => pickImage('camera') },
-        { text: 'Gallery', onPress: () => pickImage('gallery') },
-        { text: 'Cancel', style: 'cancel' },
-      ]
-    );
   };
 
   return (
@@ -194,7 +183,7 @@ export default function ScanScreen() {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Payment Amount</Text>
             <View style={styles.amountContainer}>
-              <Text style={styles.currencySymbol}>₹</Text>
+              <Text style={styles.currencySymbol}>$</Text>
               <TextInput
                 style={styles.amountInput}
                 value={amount}
@@ -211,8 +200,8 @@ export default function ScanScreen() {
           <View style={styles.section}>
             <TouchableOpacity
               style={[styles.scanButton, loading && styles.scanButtonDisabled]}
-              onPress={showImagePicker}
-              disabled={loading || !amount.trim()}
+              onPress={takePicture}
+              disabled={loading}
             >
               <LinearGradient
                 colors={Colors.gradients.primary}
@@ -273,17 +262,9 @@ export default function ScanScreen() {
                 disabled={!selectedUser || loading}
               >
                 <Text style={styles.paymentButtonText}>
-                  {loading ? 'Processing...' : `Process Payment - ₹${amount}`}
+                  {loading ? 'Processing...' : `Process Payment - $${amount}`}
                 </Text>
               </TouchableOpacity>
-            </View>
-          )}
-
-          {/* Demo Mode Indicator */}
-          {demoMode && (
-            <View style={styles.demoIndicator}>
-              <Ionicons name="information-circle" size={16} color={Colors.info} />
-              <Text style={styles.demoText}>Demo Mode - Face recognition simulated</Text>
             </View>
           )}
         </ScrollView>
@@ -457,21 +438,5 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: Colors.text.white,
-  },
-  demoIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: Colors.status.processing,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-    marginTop: 24,
-    gap: 6,
-  },
-  demoText: {
-    fontSize: 12,
-    color: Colors.info,
-    fontWeight: '500',
   },
 }); 

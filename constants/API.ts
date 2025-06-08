@@ -1,7 +1,7 @@
 // API Configuration
 export const API_CONFIG = {
-  BACKEND_URL: __DEV__ ? 'http://192.168.112.2:8000' : 'https://your-production-backend.com',
-  FACE_API_URL: __DEV__ ? 'http://192.168.112.2:8001' : 'https://your-production-faceapi.com',
+  BACKEND_URL: __DEV__ ? 'http://192.168.148.2:8002' : 'https://your-production-backend.com',
+  FACE_API_URL: __DEV__ ? 'http://192.168.148.2:8001' : 'https://your-production-faceapi.com',
   TIMEOUT: 30000, // 30 seconds
   
   // Request headers
@@ -47,7 +47,7 @@ export const BACKEND_ENDPOINTS = {
   
   // Payments
   PAYMENTS: {
-    INITIATE: '/merchants/initiate-payment',
+    INITIATE: (merchantId: string) => `/merchants/${merchantId}/payments/initiate`,
     STATUS: '/merchants/payment-status',
   },
   
