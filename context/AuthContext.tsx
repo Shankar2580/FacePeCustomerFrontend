@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { AppState, AppStateStatus } from 'react-native';
 import { UserData, getStoredTokens, getUserData, clearAllData, storeTokens, storeUserData } from '../services/storage';
 import api from '../services/api';
 
@@ -21,6 +22,7 @@ interface AuthContextType {
   verifyMobile: (code: string) => Promise<boolean>;
   completeStripeOnboarding: (redirectUrl: string) => Promise<boolean>;
   startMerchantOnboarding: () => Promise<string | null>;
+  refreshStripeOnboarding: () => Promise<string | null>;
   refreshUserProfile: () => Promise<void>;
   setRegistrationStep: (step: 'phone' | 'details' | 'mobile_verify' | 'stripe' | 'complete') => void;
   setEmailToken: (token: string) => void;
@@ -52,6 +54,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   useEffect(() => {
     checkAuthStatus();
   }, []);
+
+  // Add AppState listener to refresh profile on app focus
+  useEffect(() => {
+    const handleAppStateChange = (nextAppState: AppStateStatus) => {
+      if (nextAppState === 'active') {
+        console.log('App has come to the foreground, refreshing profile...');
+        refreshUserProfile();
+      }
+    };
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+
+    return () => {
+      subscription.remove();
+    };
+  }, [isAuthenticated]); // Re-run when authentication status changes
 
   const checkAuthStatus = async () => {
     try {
@@ -305,6 +323,23 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
+  const refreshStripeOnboarding = async (): Promise<string | null> => {
+    try {
+      setIsLoading(true);
+      const response = await api.stripe.refreshOnboarding();
+      
+      if (response.status === 200 && response.data.onboarding_url) {
+        return response.data.onboarding_url;
+      }
+      return null;
+    } catch (error) {
+      console.error('Refresh onboarding error:', error);
+      return null;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const refreshUserProfile = async (): Promise<void> => {
     try {
       if (!isAuthenticated) return;
@@ -351,6 +386,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     refreshUserProfile,
     setRegistrationStep,
     setEmailToken,
+    refreshStripeOnboarding,
   };
 
   return (

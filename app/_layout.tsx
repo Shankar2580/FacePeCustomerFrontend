@@ -32,35 +32,36 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider>
-      <AuthProvider>
-        <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-          <Stack 
-            screenOptions={{
-              headerShown: false,
-              contentStyle: { 
-                backgroundColor: Colors.background.primary 
-              },
-              animation: 'slide_from_right',
-            }}
-          >
-            {/* Main Entry Point */}
-            <Stack.Screen name="index" />
-            
-            {/* Auth Screens */}
-            <Stack.Screen name="(auth)" />
-            
-            {/* Main App */}
-            <Stack.Screen name="(tabs)" />
-            
-            {/* Onboarding */}
-            <Stack.Screen name="onboarding-complete" />
-            
-            {/* Other screens */}
-            <Stack.Screen name="+not-found" />
-          </Stack>
-          <StatusBar style="dark" backgroundColor={Colors.background.primary} />
-        </ThemeProvider>
-      </AuthProvider>
+        <AuthProvider>
+          <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+            <StatusBar 
+              style="dark" 
+              backgroundColor={Colors.background.primary}
+              translucent={false}
+            />
+            <Stack 
+              screenOptions={{
+                headerShown: false,
+                contentStyle: { 
+                  backgroundColor: Colors.background.primary 
+                },
+                animation: 'slide_from_right',
+              }}
+            >
+              {/* Main Entry Point */}
+              <Stack.Screen name="index" />
+              
+              {/* Main App */}
+              <Stack.Screen name="(tabs)" />
+              
+              {/* Onboarding */}
+              <Stack.Screen name="onboarding-complete" />
+              
+              {/* Other screens */}
+              <Stack.Screen name="+not-found" />
+            </Stack>
+          </ThemeProvider>
+        </AuthProvider>
     </SafeAreaProvider>
   );
 }

@@ -105,6 +105,16 @@ export interface VerifyOTPRequest {
   verification_code: string;
 }
 
+export interface ForgotPasswordRequest {
+  mobile_number: string;
+}
+
+export interface ResetPasswordRequest {
+  mobile_number: string;
+  verification_code: string;
+  new_password: string;
+}
+
 export interface StripeOnboardRequest {
   email_token: string;
   redirect_base: string;
@@ -164,6 +174,12 @@ export const authAPI = {
     
   logout: (refreshToken: string): Promise<AxiosResponse<void>> =>
     backendAPI.post(BACKEND_ENDPOINTS.AUTH.LOGOUT, { refresh_token: refreshToken }),
+
+  forgotPassword: (data: ForgotPasswordRequest): Promise<AxiosResponse<MessageResponse>> =>
+    backendAPI.post(BACKEND_ENDPOINTS.AUTH.FORGOT_PASSWORD, data),
+
+  resetPassword: (data: ResetPasswordRequest): Promise<AxiosResponse<MessageResponse>> =>
+    backendAPI.post(BACKEND_ENDPOINTS.AUTH.RESET_PASSWORD, data),
 };
 
 // Stripe API
@@ -173,6 +189,9 @@ export const stripeAPI = {
     
   merchantOnboard: (): Promise<AxiosResponse<{ onboarding_url: string }>> =>
     backendAPI.post(BACKEND_ENDPOINTS.STRIPE.MERCHANT_ONBOARD),
+    
+  refreshOnboarding: (): Promise<AxiosResponse<{ onboarding_url: string }>> =>
+    backendAPI.post('/auth/refresh-stripe-onboarding'),
     
   getStatus: (): Promise<AxiosResponse<{
     has_stripe_account: boolean;

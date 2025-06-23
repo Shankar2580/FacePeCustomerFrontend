@@ -6,13 +6,13 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
-  KeyboardAvoidingView,
   Platform,
   ScrollView,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from '@/context/AuthContext';
 import apiService from '@/services/api';
@@ -57,9 +57,10 @@ export default function ScanScreen() {
         allowsEditing: true,
         aspect: [1, 1],
         quality: 0.8,
+        cameraType: ImagePicker.CameraType.front,
       });
 
-      if (!result.canceled && result.assets[0]) {
+      if (!result.canceled && result.assets && result.assets[0]) {
         await processFaceImage(result.assets[0].uri);
       }
     } catch (error) {
@@ -122,14 +123,33 @@ export default function ScanScreen() {
       return;
     }
 
+    // Check if merchant has completed onboarding
+    if (!user?.id) {
+      Alert.alert('Error', 'Merchant information not available');
+      return;
+    }
+
+    if (user.stripe_account_status !== 'COMPLETE') {
+      Alert.alert(
+        'Complete Your Onboarding',
+        'You need to complete your merchant onboarding first before processing payments.',
+        [
+          {
+            text: 'Complete Onboarding',
+            onPress: () => router.push('/(tabs)/profile'),
+          },
+          {
+            text: 'Cancel',
+            style: 'cancel',
+          }
+        ]
+      );
+      return;
+    }
+
     setLoading(true);
     
     try {
-      if (!user?.id) {
-        Alert.alert('Error', 'Merchant information not available');
-        return;
-      }
-
       const response = await apiService.merchant.initiatePayment(user.id, {
         user_id: selectedUser,
         face_scan_id: `scan_${Date.now()}`,
@@ -152,20 +172,45 @@ export default function ScanScreen() {
           }
         ]
       );
-    } catch (error) {
+    } catch (error: any) {
       console.error('Payment error:', error);
-      Alert.alert('Error', 'Payment processing failed. Please try again.');
+      
+      // Handle specific error messages
+      if (error.response?.status === 400) {
+        const errorMessage = error.response?.data?.detail || 'Payment processing failed';
+        if (errorMessage.includes('Stripe account not properly configured')) {
+          Alert.alert(
+            'Complete Your Onboarding',
+            'Your Stripe account setup is incomplete. Please complete your merchant onboarding first.',
+            [
+              {
+                text: 'Complete Onboarding',
+                onPress: () => router.push('/(tabs)/profile'),
+              },
+              {
+                text: 'Cancel',
+                style: 'cancel',
+              }
+            ]
+          );
+        } else {
+          Alert.alert('Error', errorMessage);
+        }
+      } else {
+        Alert.alert('Error', 'Payment processing failed. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
   };
 
+
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
       {/* Header */}
       <LinearGradient
         colors={Colors.gradients.header}
-        style={styles.header}
+        style={[styles.header, { paddingTop: insets.top + 20 }]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
       >
@@ -175,17 +220,15 @@ export default function ScanScreen() {
         </View>
       </LinearGradient>
 
-      <KeyboardAvoidingView 
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      <ScrollView 
         style={styles.content}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: Math.max(insets.bottom + 80, 100) }
+        ]}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
       >
-        <ScrollView 
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={[
-            styles.scrollContent,
-            { paddingBottom: Math.max(insets.bottom + 80, 100) }
-          ]}
-        >
           {/* Amount Input */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Payment Amount</Text>
@@ -274,8 +317,7 @@ export default function ScanScreen() {
               </TouchableOpacity>
             </View>
           )}
-        </ScrollView>
-      </KeyboardAvoidingView>
+      </ScrollView>
     </SafeAreaView>
   );
 }

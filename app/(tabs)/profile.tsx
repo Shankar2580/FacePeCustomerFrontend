@@ -159,6 +159,13 @@ export default function ProfileScreen() {
           status: undefined,
         },
         {
+          icon: 'download' as const,
+          label: 'Check for Updates',
+          value: 'Tap to check',
+          action: 'check-updates' as const,
+          status: undefined,
+        },
+        {
           icon: 'shield-checkmark' as const,
           label: 'Security',
           value: 'Manage',
@@ -269,6 +276,8 @@ export default function ProfileScreen() {
                       Alert.alert('Coming Soon', 'This feature will be available soon');
                     } else if (item.action === 'toggle') {
                       Alert.alert('Settings', 'Notification settings will be available soon');
+                    } else if (item.action === 'check-updates') {
+                      Alert.alert('Development Mode', 'Updates are only available in production builds.');
                     }
                   }}
                   disabled={!item.action}
@@ -313,11 +322,6 @@ export default function ProfileScreen() {
             <Ionicons name="log-out-outline" size={20} color={Colors.error} />
             <Text style={styles.logoutButtonText}>Logout</Text>
           </TouchableOpacity>
-        </View>
-
-        {/* App Version */}
-        <View style={styles.versionSection}>
-          <Text style={styles.versionText}>Version 1.0.0</Text>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -524,6 +528,12 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
   },
   versionText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.text.primary,
+    marginBottom: 4,
+  },
+  buildText: {
     fontSize: 12,
     color: Colors.text.muted,
   },

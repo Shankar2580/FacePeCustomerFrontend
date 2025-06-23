@@ -5,11 +5,12 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
+  Alert,
+  ScrollView,
   KeyboardAvoidingView,
   Platform,
-  Alert,
 } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
@@ -17,6 +18,7 @@ import Colors from '@/constants/Colors';
 
 export default function LoginScreen() {
   const { login, isLoading } = useAuth();
+  const insets = useSafeAreaInsets();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -40,100 +42,118 @@ export default function LoginScreen() {
   const isFormValid = email.trim() && password.trim();
 
   return (
-    <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView 
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right', 'bottom']}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.content}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 24}
       >
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.iconContainer}>
-            <Ionicons name="log-in" size={40} color={Colors.primary} />
-          </View>
-          
-          <Text style={styles.title}>Welcome Back</Text>
-          <Text style={styles.subtitle}>
-            Sign in to your merchant account
-          </Text>
-        </View>
-
-        {/* Form */}
-        <View style={styles.form}>
-          {/* Email */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Email Address</Text>
-            <View style={styles.inputContainer}>
-              <Ionicons name="mail" size={20} color={Colors.text.light} style={styles.inputIcon} />
-              <TextInput
-                style={styles.input}
-                placeholder="Enter your email"
-                placeholderTextColor={Colors.text.light}
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoComplete="email"
-              />
+        <ScrollView 
+          style={styles.content}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          automaticallyAdjustKeyboardInsets={true}
+        >
+          {/* Header */}
+          <View style={styles.header}>
+            <View style={styles.iconContainer}>
+              <Ionicons name="log-in" size={40} color={Colors.primary} />
             </View>
-          </View>
-
-          {/* Password */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Password</Text>
-            <View style={styles.inputContainer}>
-              <Ionicons name="lock-closed" size={20} color={Colors.text.light} style={styles.inputIcon} />
-              <TextInput
-                style={styles.input}
-                placeholder="Enter your password"
-                placeholderTextColor={Colors.text.light}
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry={!showPassword}
-                autoCapitalize="none"
-                autoComplete="password"
-              />
-              <TouchableOpacity 
-                onPress={() => setShowPassword(!showPassword)}
-                style={styles.eyeIcon}
-              >
-                <Ionicons 
-                  name={showPassword ? "eye-off" : "eye"} 
-                  size={20} 
-                  color={Colors.text.light} 
-                />
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {/* Login Button - moved inside form for better positioning */}
-          <View style={styles.buttonSection}>
-            <TouchableOpacity
-              style={[styles.loginButton, isFormValid && styles.loginButtonActive]}
-              onPress={handleLogin}
-              disabled={!isFormValid || isLoading}
-            >
-              <Text style={styles.loginButtonText}>
-                {isLoading ? 'Signing In...' : 'Sign In'}
-              </Text>
-              {!isLoading && (
-                <Ionicons name="arrow-forward" size={20} color={Colors.text.white} />
-              )}
-            </TouchableOpacity>
-          </View>
-
-          {/* Footer - moved inside form */}
-          <View style={styles.footer}>
-            <Text style={styles.footerText}>
-              Don't have an account?{' '}
-              <Text 
-                style={styles.footerLink}
-                onPress={() => router.push('/(auth)/phone-verification')}
-              >
-                Sign Up
-              </Text>
+            
+            <Text style={styles.title}>Welcome Back</Text>
+            <Text style={styles.subtitle}>
+              Sign in to your merchant account
             </Text>
           </View>
-        </View>
+
+          {/* Form */}
+          <View style={styles.form}>
+            {/* Email */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Email Address</Text>
+              <View style={styles.inputContainer}>
+                <Ionicons name="mail" size={20} color={Colors.text.light} style={styles.inputIcon} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter your email"
+                  placeholderTextColor={Colors.text.light}
+                  value={email}
+                  onChangeText={setEmail}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoComplete="email"
+                />
+              </View>
+            </View>
+
+            {/* Password */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Password</Text>
+              <View style={styles.inputContainer}>
+                <Ionicons name="lock-closed" size={20} color={Colors.text.light} style={styles.inputIcon} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter your password"
+                  placeholderTextColor={Colors.text.light}
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry={!showPassword}
+                  autoCapitalize="none"
+                  autoComplete="password"
+                />
+                <TouchableOpacity 
+                  onPress={() => setShowPassword(!showPassword)}
+                  style={styles.eyeIcon}
+                >
+                  <Ionicons 
+                    name={showPassword ? "eye-off" : "eye"} 
+                    size={20} 
+                    color={Colors.text.light} 
+                  />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Login Button */}
+            <View style={styles.buttonSection}>
+              <TouchableOpacity
+                style={[styles.loginButton, isFormValid && styles.loginButtonActive]}
+                onPress={handleLogin}
+                disabled={!isFormValid || isLoading}
+              >
+                <Text style={styles.loginButtonText}>
+                  {isLoading ? 'Signing In...' : 'Sign In'}
+                </Text>
+                {!isLoading && (
+                  <Ionicons name="arrow-forward" size={20} color={Colors.text.white} />
+                )}
+              </TouchableOpacity>
+            </View>
+
+            {/* Footer */}
+            <View style={styles.footer}>
+              <Text style={styles.footerText}>
+                <Text 
+                  style={styles.footerLink}
+                  onPress={() => router.push('/forgot-password' as any)}
+                >
+                  Forgot Password?
+                </Text>
+              </Text>
+              
+              <Text style={[styles.footerText, { marginTop: 12 }]}>
+                Don't have an account?{' '}
+                <Text 
+                  style={styles.footerLink}
+                  onPress={() => router.push('/(auth)/phone-verification')}
+                >
+                  Sign Up
+                </Text>
+              </Text>
+            </View>
+          </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -146,11 +166,14 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: 'space-between',
     paddingHorizontal: 24,
   },
   header: {
     alignItems: 'center',
-    paddingTop: 60,
     paddingBottom: 40,
   },
   iconContainer: {
@@ -178,7 +201,6 @@ const styles = StyleSheet.create({
   form: {
     flex: 1,
     paddingTop: 20,
-    justifyContent: 'space-between',
   },
   inputGroup: {
     marginBottom: 24,
@@ -212,8 +234,8 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   buttonSection: {
-    paddingTop: 40,
-    paddingBottom: 20,
+    paddingTop: 24,
+    paddingBottom: 16,
   },
   loginButton: {
     flexDirection: 'row',
@@ -240,12 +262,12 @@ const styles = StyleSheet.create({
   },
   footer: {
     alignItems: 'center',
-    paddingTop: 20,
-    paddingBottom: 40,
+    paddingBottom: 24,
   },
   footerText: {
     fontSize: 14,
     color: Colors.text.secondary,
+    textAlign: 'center',
   },
   footerLink: {
     color: Colors.primary,

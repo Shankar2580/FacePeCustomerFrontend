@@ -1,7 +1,7 @@
 // API Configuration
 export const API_CONFIG = {
-  BACKEND_URL: __DEV__ ? 'http://192.168.148.2:8002' : 'https://your-production-backend.com',
-  FACE_API_URL: __DEV__ ? 'http://192.168.148.2:8001' : 'https://your-production-faceapi.com',
+  BACKEND_URL: __DEV__ ? 'https://merchant-backend-r0m0.onrender.com' : 'https://merchant-backend-r0m0.onrender.com',
+  FACE_API_URL: __DEV__ ? 'http://3.142.236.38:8001' : 'http://3.142.236.38:8001',
   TIMEOUT: 30000, // 30 seconds
   
   // Request headers
@@ -28,6 +28,8 @@ export const BACKEND_ENDPOINTS = {
     LOGIN: '/auth/login',
     REFRESH: '/auth/refresh',
     LOGOUT: '/auth/logout',
+    FORGOT_PASSWORD: '/auth/forgot-password',
+    RESET_PASSWORD: '/auth/reset-password',
   },
   
   // Stripe Onboarding

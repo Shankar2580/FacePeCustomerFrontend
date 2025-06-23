@@ -5,11 +5,12 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
-  KeyboardAvoidingView,
   Platform,
   Alert,
+  ScrollView,
+  KeyboardAvoidingView,
 } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -17,6 +18,7 @@ import Colors from '@/constants/Colors';
 import apiService from '@/services/api';
 
 export default function PhoneVerificationScreen() {
+  const insets = useSafeAreaInsets();
   const [phoneNumber, setPhoneNumber] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
@@ -67,84 +69,93 @@ export default function PhoneVerificationScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView 
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right', 'bottom']}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.content}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 24}
       >
-        {/* Header */}
-        <View style={styles.header}>
-          <LinearGradient
-            colors={Colors.gradients.primary}
-            style={styles.iconContainer}
-          >
-            <Ionicons name="phone-portrait" size={32} color={Colors.text.white} />
-          </LinearGradient>
-          
-          <Text style={styles.title}>Verify Your Phone</Text>
-          <Text style={styles.subtitle}>
-            Enter your phone number to get started with your merchant account
-          </Text>
-        </View>
-
-        {/* Phone Input */}
-        <View style={styles.inputSection}>
-          <View style={styles.inputContainer}>
-            <View style={styles.countryCode}>
-              <Text style={styles.countryCodeText}>🇺🇸 +1</Text>
-            </View>
-            <TextInput
-              style={styles.phoneInput}
-              placeholder="(555) 123-4567"
-              placeholderTextColor={Colors.text.light}
-              value={phoneNumber}
-              onChangeText={handlePhoneChange}
-              keyboardType="phone-pad"
-              maxLength={14}
-              autoFocus
-            />
-          </View>
-          
-          <Text style={styles.inputHint}>
-            We'll send you a verification code via SMS
-          </Text>
-        </View>
-
-        {/* Continue Button */}
-        <View style={styles.buttonSection}>
-          <TouchableOpacity
-            style={[styles.continueButton, phoneNumber.length >= 14 && styles.continueButtonActive]}
-            onPress={handleContinue}
-            disabled={phoneNumber.length < 14 || isLoading}
-          >
+        <ScrollView 
+          style={styles.content}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          automaticallyAdjustKeyboardInsets={true}
+        >
+          {/* Header */}
+          <View style={styles.header}>
             <LinearGradient
-              colors={phoneNumber.length >= 14 ? Colors.gradients.primary : ['#CBD5E1', '#94A3B8']}
-              style={styles.continueButtonGradient}
+              colors={Colors.gradients.primary}
+              style={styles.iconContainer}
             >
-              {isLoading ? (
-                <Text style={styles.continueButtonText}>Please wait...</Text>
-              ) : (
-                <>
-                  <Text style={styles.continueButtonText}>Continue</Text>
-                  <Ionicons name="arrow-forward" size={20} color={Colors.text.white} />
-                </>
-              )}
+              <Ionicons name="phone-portrait" size={32} color={Colors.text.white} />
             </LinearGradient>
-          </TouchableOpacity>
-        </View>
-
-        {/* Footer */}
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>
-            Already have an account?{' '}
-            <Text 
-              style={styles.footerLink}
-              onPress={() => router.push('/(auth)/login')}
-            >
-              Sign In
+            
+            <Text style={styles.title}>Verify Your Phone</Text>
+            <Text style={styles.subtitle}>
+              Enter your phone number to get started with your merchant account
             </Text>
-          </Text>
-        </View>
+          </View>
+
+          {/* Phone Input */}
+          <View style={styles.inputSection}>
+            <View style={styles.inputContainer}>
+              <View style={styles.countryCode}>
+                <Text style={styles.countryCodeText}>🇺🇸 +1</Text>
+              </View>
+              <TextInput
+                style={styles.phoneInput}
+                placeholder="(555) 123-4567"
+                placeholderTextColor={Colors.text.light}
+                value={phoneNumber}
+                onChangeText={handlePhoneChange}
+                keyboardType="phone-pad"
+                maxLength={14}
+                autoFocus
+              />
+            </View>
+            
+            <Text style={styles.inputHint}>
+              We'll send you a verification code via SMS
+            </Text>
+          </View>
+
+          {/* Continue Button */}
+          <View style={styles.buttonSection}>
+            <TouchableOpacity
+              style={[styles.continueButton, phoneNumber.length >= 14 && styles.continueButtonActive]}
+              onPress={handleContinue}
+              disabled={phoneNumber.length < 14 || isLoading}
+            >
+              <LinearGradient
+                colors={phoneNumber.length >= 14 ? Colors.gradients.primary : ['#CBD5E1', '#94A3B8']}
+                style={styles.continueButtonGradient}
+              >
+                {isLoading ? (
+                  <Text style={styles.continueButtonText}>Please wait...</Text>
+                ) : (
+                  <>
+                    <Text style={styles.continueButtonText}>Continue</Text>
+                    <Ionicons name="arrow-forward" size={20} color={Colors.text.white} />
+                  </>
+                )}
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+
+          {/* Footer */}
+          <View style={styles.footer}>
+            <Text style={styles.footerText}>
+              Already have an account?{' '}
+              <Text 
+                style={styles.footerLink}
+                onPress={() => router.push('/(auth)/login')}
+              >
+                Sign In
+              </Text>
+            </Text>
+          </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -157,11 +168,14 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: 'space-between',
     paddingHorizontal: 24,
   },
   header: {
     alignItems: 'center',
-    paddingTop: 60,
     paddingBottom: 40,
   },
   iconContainer: {

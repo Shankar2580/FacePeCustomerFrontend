@@ -30,7 +30,7 @@ interface DashboardData {
 }
 
 export default function HomeScreen() {
-  const { user, logout, startMerchantOnboarding, refreshUserProfile } = useAuth();
+  const { user, logout, startMerchantOnboarding, refreshUserProfile, refreshStripeOnboarding } = useAuth();
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -90,7 +90,16 @@ export default function HomeScreen() {
   const handleStripeOnboarding = async () => {
     try {
       setOnboardingLoading(true);
-      const onboardingUrl = await startMerchantOnboarding();
+      let onboardingUrl: string | null = null;
+      
+      // Use appropriate function based on account status
+      if (user?.stripe_account_status === 'INCOMPLETE') {
+        // Account exists but incomplete - use refresh to resume
+        onboardingUrl = await refreshStripeOnboarding();
+      } else {
+        // New account or other status - use normal onboarding
+        onboardingUrl = await startMerchantOnboarding();
+      }
       
       if (onboardingUrl) {
         // Open Stripe onboarding in browser
@@ -109,6 +118,25 @@ export default function HomeScreen() {
   useEffect(() => {
     fetchDashboardData();
   }, []);
+
+  // Auto-refresh when Stripe status is pending verification
+  useEffect(() => {
+    let interval: ReturnType<typeof setInterval>;
+    
+    if (user?.stripe_account_status === 'PENDING_VERIFICATION') {
+      // Check every 30 seconds when pending verification
+      interval = setInterval(async () => {
+        console.log('🔄 Auto-refreshing Stripe status...');
+        await refreshUserProfile();
+      }, 30000);
+    }
+    
+    return () => {
+      if (interval) {
+        clearInterval(interval);
+      }
+    };
+  }, [user?.stripe_account_status]);
 
   const formatCurrency = (amount: number) => {
     return `$${amount.toLocaleString('en-US', {
@@ -201,9 +229,19 @@ export default function HomeScreen() {
                 <View style={styles.onboardingLeft}>
                   <Ionicons name="warning" size={24} color={Colors.text.white} />
                   <View style={styles.onboardingText}>
-                    <Text style={styles.onboardingTitle}>Setup Required</Text>
+                    <Text style={styles.onboardingTitle}>
+                      {user.stripe_account_status === 'PENDING_VERIFICATION' ? 'Under Review' :
+                       user.stripe_account_status === 'ACTIVE_WITH_REQUIREMENTS' ? 'Action Required' :
+                       user.stripe_account_status === 'INCOMPLETE' ? 'Continue Setup' : 'Setup Required'}
+                    </Text>
                     <Text style={styles.onboardingSubtitle}>
-                      Complete Stripe onboarding to start accepting payments
+                      {user.stripe_account_status === 'PENDING_VERIFICATION' ? 
+                        'Stripe is reviewing your account. This usually takes 1-2 business days.' :
+                       user.stripe_account_status === 'ACTIVE_WITH_REQUIREMENTS' ? 
+                        'Additional information needed to complete your account setup.' :
+                       user.stripe_account_status === 'INCOMPLETE' ? 
+                        'Continue your Stripe setup where you left off.' :
+                        'Complete Stripe onboarding to start accepting payments'}
                     </Text>
                     <Text style={styles.statusDebug}>
                       Status: {user.stripe_account_status}
@@ -218,18 +256,21 @@ export default function HomeScreen() {
                   >
                     <Ionicons name="refresh" size={16} color={Colors.text.white} />
                   </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.onboardingButton}
-                    onPress={handleStripeOnboarding}
-                    disabled={onboardingLoading}
-                  >
-                    <Text style={styles.onboardingButtonText}>
-                      {onboardingLoading ? 'Loading...' : 'Setup Now'}
-                    </Text>
-                    {!onboardingLoading && (
-                      <Ionicons name="arrow-forward" size={16} color={Colors.text.white} />
-                    )}
-                  </TouchableOpacity>
+                  {user.stripe_account_status !== 'PENDING_VERIFICATION' && (
+                    <TouchableOpacity
+                      style={styles.onboardingButton}
+                      onPress={handleStripeOnboarding}
+                      disabled={onboardingLoading}
+                    >
+                      <Text style={styles.onboardingButtonText}>
+                        {onboardingLoading ? 'Loading...' : 
+                         user.stripe_account_status === 'INCOMPLETE' ? 'Continue' : 'Setup Now'}
+                      </Text>
+                      {!onboardingLoading && (
+                        <Ionicons name="arrow-forward" size={16} color={Colors.text.white} />
+                      )}
+                    </TouchableOpacity>
+                  )}
                 </View>
               </View>
             </LinearGradient>
@@ -272,6 +313,30 @@ export default function HomeScreen() {
               </LinearGradient>
             </View>
           </View>
+
+          {/* Payout Status Card */}
+          {user && (
+            <View style={styles.payoutCard}>
+              <View style={styles.payoutHeader}>
+                <Ionicons 
+                  name={user.payout_enabled ? "wallet" : "wallet-outline"} 
+                  size={20} 
+                  color={user.payout_enabled ? Colors.success : Colors.warning} 
+                />
+                <Text style={styles.payoutTitle}>Payout Status</Text>
+              </View>
+              <Text style={styles.payoutStatus}>
+                {user.payout_enabled ? 
+                  '✅ Automatic payouts enabled' : 
+                  '⏳ Complete Stripe setup to enable payouts'}
+              </Text>
+              {user.payout_enabled && (
+                <Text style={styles.payoutSchedule}>
+                  💰 Funds are automatically transferred to your bank account within 2 business days
+                </Text>
+              )}
+            </View>
+          )}
         </View>
 
         {/* Recent Transactions */}
@@ -500,6 +565,37 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Colors.text.white,
     opacity: 0.9,
+  },
+  payoutCard: {
+    marginTop: 20,
+    padding: 20,
+    borderRadius: 16,
+    backgroundColor: Colors.background.card,
+    elevation: 3,
+    shadowColor: Colors.shadow.medium,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+  },
+  payoutHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  payoutTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: Colors.text.primary,
+    marginLeft: 8,
+  },
+  payoutStatus: {
+    fontSize: 14,
+    color: Colors.text.primary,
+    marginBottom: 8,
+  },
+  payoutSchedule: {
+    fontSize: 12,
+    color: Colors.text.muted,
   },
   transactionsSection: {
     marginBottom: 32,

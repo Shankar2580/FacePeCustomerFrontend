@@ -5,10 +5,13 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
   Alert,
   Animated,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
 } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
@@ -16,6 +19,7 @@ import Colors from '@/constants/Colors';
 
 export default function MobileVerifyScreen() {
   const { verifyMobile, sendMobileVerification, isLoading, emailToken } = useAuth();
+  const insets = useSafeAreaInsets();
   const [code, setCode] = useState(['', '', '', '', '', '']);
   const [timer, setTimer] = useState(60);
   const [canResend, setCanResend] = useState(false);
@@ -73,7 +77,7 @@ export default function MobileVerifyScreen() {
     const success = await verifyMobile(fullCode);
     
     if (success) {
-      router.push('/(auth)/stripe-onboarding');
+      router.push('/onboarding-complete' as any);
     } else {
       // Shake animation for error
       shakeCode();
@@ -108,97 +112,111 @@ export default function MobileVerifyScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity 
-          style={styles.backButton}
-          onPress={() => router.back()}
-        >
-          <Ionicons name="arrow-back" size={24} color={Colors.text.primary} />
-        </TouchableOpacity>
-        
-        <View style={styles.iconContainer}>
-          <Ionicons name="chatbubble-ellipses" size={40} color={Colors.primary} />
-        </View>
-        
-        <Text style={styles.title}>Verify Your Number</Text>
-        <Text style={styles.subtitle}>
-          Enter the 6-digit code sent to your mobile number
-        </Text>
-      </View>
-
-      {/* Code Input */}
-      <Animated.View 
-        style={[styles.codeContainer, { transform: [{ translateX: shakeAnimation }] }]}
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right', 'bottom']}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 24}
       >
-        {code.map((digit, index) => (
-          <TextInput
-            key={index}
-            ref={(ref) => (inputRefs.current[index] = ref)}
-            style={[
-              styles.codeInput,
-              digit && styles.codeInputFilled,
-              index === code.findIndex(d => d === '') && styles.codeInputActive
-            ]}
-            value={digit}
-            onChangeText={(value) => handleCodeChange(value, index)}
-            onKeyPress={({ nativeEvent }) => handleKeyPress(nativeEvent.key, index)}
-            keyboardType="number-pad"
-            maxLength={1}
-            selectTextOnFocus
-            autoFocus={index === 0}
-            editable={!isLoading}
-          />
-        ))}
-      </Animated.View>
-
-      {/* Timer and Resend */}
-      <View style={styles.timerSection}>
-        {!canResend ? (
-          <Text style={styles.timerText}>
-            Resend code in {Math.floor(timer / 60)}:{(timer % 60).toString().padStart(2, '0')}
-          </Text>
-        ) : (
-          <TouchableOpacity onPress={handleResend} disabled={isLoading}>
-            <Text style={styles.resendText}>
-              Didn't receive the code? Tap to resend
-            </Text>
-          </TouchableOpacity>
-        )}
-      </View>
-
-      {/* Verify Button */}
-      <View style={styles.buttonSection}>
-        <TouchableOpacity
-          style={[
-            styles.verifyButton,
-            code.every(digit => digit !== '') && styles.verifyButtonActive
-          ]}
-          onPress={() => handleVerify()}
-          disabled={!code.every(digit => digit !== '') || isLoading}
+        <ScrollView 
+          style={styles.content}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          automaticallyAdjustKeyboardInsets={true}
         >
-          <Text style={styles.verifyButtonText}>
-            {isLoading ? 'Verifying...' : 'Verify Code'}
-          </Text>
-          {!isLoading && (
-            <Ionicons name="checkmark" size={20} color={Colors.text.white} />
-          )}
-        </TouchableOpacity>
-      </View>
+          {/* Header */}
+          <View style={styles.header}>
+            <TouchableOpacity 
+              style={styles.backButton}
+              onPress={() => router.back()}
+            >
+              <Ionicons name="arrow-back" size={24} color={Colors.text.primary} />
+            </TouchableOpacity>
+            
+            <View style={styles.iconContainer}>
+              <Ionicons name="chatbubble-ellipses" size={40} color={Colors.primary} />
+            </View>
+            
+            <Text style={styles.title}>Verify Your Number</Text>
+            <Text style={styles.subtitle}>
+              Enter the 6-digit code sent to your mobile number
+            </Text>
+          </View>
 
-      {/* Footer */}
-      <View style={styles.footer}>
-        <Text style={styles.footerText}>
-          Having trouble? {' '}
-          <Text 
-            style={styles.footerLink}
-            onPress={() => Alert.alert('Support', 'Contact support for help')}
+          {/* Code Input */}
+          <Animated.View 
+            style={[styles.codeContainer, { transform: [{ translateX: shakeAnimation }] }]}
           >
-            Contact Support
-          </Text>
-        </Text>
-      </View>
+            {code.map((digit, index) => (
+              <TextInput
+                key={index}
+                ref={(ref) => { inputRefs.current[index] = ref; }}
+                style={[
+                  styles.codeInput,
+                  digit && styles.codeInputFilled,
+                  index === code.findIndex(d => d === '') && styles.codeInputActive
+                ]}
+                value={digit}
+                onChangeText={(value) => handleCodeChange(value, index)}
+                onKeyPress={({ nativeEvent }) => handleKeyPress(nativeEvent.key, index)}
+                keyboardType="number-pad"
+                maxLength={1}
+                selectTextOnFocus
+                autoFocus={index === 0}
+                editable={!isLoading}
+              />
+            ))}
+          </Animated.View>
+
+          {/* Timer and Resend */}
+          <View style={styles.timerSection}>
+            {!canResend ? (
+              <Text style={styles.timerText}>
+                Resend code in {Math.floor(timer / 60)}:{(timer % 60).toString().padStart(2, '0')}
+              </Text>
+            ) : (
+              <TouchableOpacity onPress={handleResend} disabled={isLoading}>
+                <Text style={styles.resendText}>
+                  Didn't receive the code? Tap to resend
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {/* Verify Button */}
+          <View style={styles.buttonSection}>
+            <TouchableOpacity
+              style={[
+                styles.verifyButton,
+                code.every(digit => digit !== '') && styles.verifyButtonActive
+              ]}
+              onPress={() => handleVerify()}
+              disabled={!code.every(digit => digit !== '') || isLoading}
+            >
+              <Text style={styles.verifyButtonText}>
+                {isLoading ? 'Verifying...' : 'Verify Code'}
+              </Text>
+              {!isLoading && (
+                <Ionicons name="checkmark" size={20} color={Colors.text.white} />
+              )}
+            </TouchableOpacity>
+          </View>
+
+          {/* Footer */}
+          <View style={styles.footer}>
+            <Text style={styles.footerText}>
+              Having trouble? {' '}
+              <Text 
+                style={styles.footerLink}
+                onPress={() => Alert.alert('Support', 'Contact support for help')}
+              >
+                Contact Support
+              </Text>
+            </Text>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -334,5 +352,11 @@ const styles = StyleSheet.create({
   footerLink: {
     color: Colors.primary,
     fontWeight: '600',
+  },
+  content: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 40,
   },
 }); 

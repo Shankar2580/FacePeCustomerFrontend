@@ -5,11 +5,12 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
   KeyboardAvoidingView,
   Platform,
   Alert,
+  ScrollView,
 } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -18,6 +19,7 @@ import apiService from '@/services/api';
 
 export default function OTPVerificationScreen() {
   const { phoneNumber } = useLocalSearchParams<{ phoneNumber: string }>();
+  const insets = useSafeAreaInsets();
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [isLoading, setIsLoading] = useState(false);
   const [resendTimer, setResendTimer] = useState(60);
@@ -109,11 +111,19 @@ export default function OTPVerificationScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView 
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.content}
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right', 'bottom']}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior="padding"
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 24}
       >
+        <ScrollView 
+          style={styles.content}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          automaticallyAdjustKeyboardInsets={true}
+        >
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity 
@@ -193,6 +203,7 @@ export default function OTPVerificationScreen() {
             </Text>
           )}
         </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -206,6 +217,10 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     paddingHorizontal: 24,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingBottom: 40,
   },
   header: {
     alignItems: 'center',
@@ -251,6 +266,7 @@ const styles = StyleSheet.create({
   otpSection: {
     flex: 1,
     paddingTop: 40,
+    marginBottom: 24,
   },
   otpContainer: {
     flexDirection: 'row',
@@ -273,7 +289,8 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background.card,
   },
   buttonSection: {
-    paddingBottom: 20,
+    paddingBottom: 16,
+    paddingTop: 4,
   },
   verifyButton: {
     borderRadius: 16,
@@ -301,7 +318,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    paddingBottom: 40,
+    paddingBottom: 24,
   },
   resendText: {
     fontSize: 14,
