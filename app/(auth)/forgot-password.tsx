@@ -27,6 +27,23 @@ export default function ForgotPasswordScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [countdown, setCountdown] = useState(0);
 
+  const formatPhoneNumber = (text: string) => {
+    // Remove all non-numeric characters
+    const cleaned = text.replace(/\D/g, '');
+    
+    // Format as (XXX) XXX-XXXX
+    const match = cleaned.match(/^(\d{0,3})(\d{0,3})(\d{0,4})$/);
+    if (match) {
+      return !match[2] ? match[1] : `(${match[1]}) ${match[2]}${match[3] ? `-${match[3]}` : ''}`;
+    }
+    return text;
+  };
+
+  const handlePhoneChange = (text: string) => {
+    const formatted = formatPhoneNumber(text);
+    setMobileNumber(formatted);
+  };
+
   const validatePassword = (password: string) => {
     const errors = [];
     
@@ -60,14 +77,18 @@ export default function ForgotPasswordScreen() {
   }, [countdown]);
 
   const handleSendCode = async () => {
-    if (!mobileNumber.trim()) {
-      Alert.alert('Validation Error', 'Please enter your mobile number');
+    if (!mobileNumber.trim() || mobileNumber.length < 14) {
+      Alert.alert('Validation Error', 'Please enter a valid mobile number');
       return;
     }
 
     setIsLoading(true);
     try {
-      await authAPI.forgotPassword({ mobile_number: mobileNumber });
+      // Convert formatted number to E.164 format
+      const cleanNumber = mobileNumber.replace(/\D/g, '');
+      const e164Number = `+1${cleanNumber}`;
+      
+      await authAPI.forgotPassword({ mobile_number: e164Number });
       setStep('verify');
       setCountdown(60);
       Alert.alert('Success', 'Verification code sent to your mobile number');
@@ -103,8 +124,12 @@ export default function ForgotPasswordScreen() {
 
     setIsLoading(true);
     try {
+      // Convert formatted number to E.164 format
+      const cleanNumber = mobileNumber.replace(/\D/g, '');
+      const e164Number = `+1${cleanNumber}`;
+      
       await authAPI.resetPassword({
-        mobile_number: mobileNumber,
+        mobile_number: e164Number,
         verification_code: verificationCode,
         new_password: newPassword,
       });
@@ -128,7 +153,11 @@ export default function ForgotPasswordScreen() {
     
     setIsLoading(true);
     try {
-      await authAPI.forgotPassword({ mobile_number: mobileNumber });
+      // Convert formatted number to E.164 format
+      const cleanNumber = mobileNumber.replace(/\D/g, '');
+      const e164Number = `+1${cleanNumber}`;
+      
+      await authAPI.forgotPassword({ mobile_number: e164Number });
       setCountdown(60);
       Alert.alert('Success', 'Verification code sent again');
     } catch (error: any) {
@@ -156,14 +185,17 @@ export default function ForgotPasswordScreen() {
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Mobile Number</Text>
           <View style={styles.inputContainer}>
-            <Ionicons name="phone-portrait" size={20} color={Colors.text.light} style={styles.inputIcon} />
+            <View style={styles.countryCode}>
+              <Text style={styles.countryCodeText}>🇺🇸 +1</Text>
+            </View>
             <TextInput
-              style={styles.input}
-              placeholder="Enter your mobile number"
+              style={styles.phoneInput}
+              placeholder="(555) 123-4567"
               placeholderTextColor={Colors.text.light}
               value={mobileNumber}
-              onChangeText={setMobileNumber}
+              onChangeText={handlePhoneChange}
               keyboardType="phone-pad"
+              maxLength={14}
               autoCapitalize="none"
             />
           </View>
@@ -171,9 +203,9 @@ export default function ForgotPasswordScreen() {
 
         <View style={styles.buttonSection}>
           <TouchableOpacity
-            style={[styles.primaryButton, mobileNumber.trim() && styles.primaryButtonActive]}
+            style={[styles.primaryButton, mobileNumber.length >= 14 && styles.primaryButtonActive]}
             onPress={handleSendCode}
-            disabled={!mobileNumber.trim() || isLoading}
+            disabled={mobileNumber.length < 14 || isLoading}
           >
             <Text style={styles.primaryButtonText}>
               {isLoading ? 'Sending Code...' : 'Send Verification Code'}
@@ -409,11 +441,33 @@ const styles = StyleSheet.create({
     borderColor: Colors.border.light,
     paddingHorizontal: 16,
     paddingVertical: 14,
+    overflow: 'hidden',
   },
   inputIcon: {
     marginRight: 12,
   },
   input: {
+    flex: 1,
+    fontSize: 16,
+    color: Colors.text.primary,
+    fontWeight: '500',
+  },
+  countryCode: {
+    paddingHorizontal: 12,
+    paddingVertical: 2,
+    backgroundColor: Colors.background.secondary,
+    borderRightWidth: 1,
+    borderRightColor: Colors.border.light,
+    justifyContent: 'center',
+    marginRight: 12,
+    borderRadius: 8,
+  },
+  countryCodeText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.text.primary,
+  },
+  phoneInput: {
     flex: 1,
     fontSize: 16,
     color: Colors.text.primary,

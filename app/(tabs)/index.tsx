@@ -20,6 +20,7 @@ import { Linking } from 'react-native';
 interface DashboardData {
   todayEarnings: number;
   todayTransactions: number;
+  allTimeEarnings?: number; // Optional for debugging
   recentTransactions: Array<{
     id: string;
     amount: number;
@@ -41,39 +42,113 @@ export default function HomeScreen() {
       const response = await apiService.merchant.getTransactions();
       // Transform the transactions data for dashboard display
       const transactions = response.data || [];
-      const today = new Date().toDateString();
-      const todayTransactions = transactions.filter((t: any) => 
-        new Date(t.created_at).toDateString() === today
-      );
       
-      const todayEarnings = todayTransactions.reduce((sum: number, t: any) => 
-        sum + (t.amount || 0), 0
-      );
+      // Debug logging to understand data structure
+      console.log('🔍 Raw transactions response:', response);
+      console.log('🔍 Transactions array:', transactions);
+      console.log('🔍 Sample transaction:', transactions[0]);
+      
+      const today = new Date().toDateString();
+      console.log('🔍 Today date string:', today);
+      
+      const todayTransactions = transactions.filter((t: any) => {
+        const transactionDate = new Date(t.created_at).toDateString();
+        const isToday = transactionDate === today;
+        const isSucceeded = t.status === 'SUCCEEDED';
+        console.log(`🔍 Transaction ${t.id}: date=${transactionDate}, isToday=${isToday}, status=${t.status}, isSucceeded=${isSucceeded}, amount=${t.amount}`);
+        return isToday && isSucceeded;
+      });
+      
+      console.log('🔍 Today transactions:', todayTransactions);
+      
+      const todayEarnings = todayTransactions.reduce((sum: number, t: any) => {
+        let amount = t.amount || 0;
+        // Convert from cents to dollars if amount is in cents (common with payment processors)
+        // Check if amount seems to be in cents (typically > 100 for small dollar amounts)
+        if (typeof amount === 'number' && amount > 0) {
+          // If the amount seems unusually large (likely in cents), convert to dollars
+          // This is a heuristic - you might need to adjust based on your backend data format
+          if (amount >= 100 && Number.isInteger(amount)) {
+            amount = amount / 100;
+            console.log(`🔍 Converted amount from cents: ${t.amount} -> ${amount}`);
+          }
+        }
+        console.log(`🔍 Adding amount: ${amount} (type: ${typeof amount}) to sum: ${sum}`);
+        return sum + amount;
+      }, 0);
+      
+      console.log('🔍 Final today earnings:', todayEarnings);
+
+      // Calculate all-time earnings as fallback
+      const allTimeEarnings = transactions.reduce((sum: number, t: any) => {
+        if (t.status === 'SUCCEEDED') {
+          let amount = t.amount || 0;
+          if (typeof amount === 'number' && amount > 0 && amount >= 100 && Number.isInteger(amount)) {
+            amount = amount / 100;
+          }
+          return sum + amount;
+        }
+        return sum;
+      }, 0);
+      
+      console.log('🔍 All-time earnings:', allTimeEarnings);
 
       setDashboardData({
         todayEarnings,
         todayTransactions: todayTransactions.length,
-        recentTransactions: transactions.slice(0, 5).map((t: any) => ({
-          id: t.id,
-          amount: t.amount || 0,
-          status: t.status || 'pending',
-          customer_name: t.customer_name || 'Customer',
-          created_at: t.created_at || new Date().toISOString(),
-        }))
+        allTimeEarnings, // Add this for debugging
+        recentTransactions: transactions.slice(0, 5).map((t: any) => {
+          let amount = t.amount || 0;
+          // Apply same amount conversion logic for consistency
+          if (typeof amount === 'number' && amount > 0 && amount >= 100 && Number.isInteger(amount)) {
+            amount = amount / 100;
+          }
+          return {
+            id: t.id,
+            amount: amount,
+            status: t.status || 'pending',
+            customer_name: t.customer_name || 'Customer',
+            created_at: t.created_at || new Date().toISOString(),
+          };
+        })
       });
     } catch (error: any) {
-      console.error('Error fetching dashboard data:', error);
+      console.error('🚨 Error fetching dashboard data:', error);
+      console.error('🚨 Error details:', {
+        message: error?.message,
+        status: error?.response?.status,
+        statusText: error?.response?.statusText,
+        data: error?.response?.data,
+        config: error?.config
+      });
       
       // Set default empty state for offline/network error scenarios
       setDashboardData({
         todayEarnings: 0,
         todayTransactions: 0,
+        allTimeEarnings: 0,
         recentTransactions: []
       });
       
-      // Only show alert if it's not a network connectivity issue
+      // Provide more specific error messaging
       if (error?.response?.status !== undefined) {
-        Alert.alert('Error', 'Failed to load dashboard data');
+        const statusCode = error.response.status;
+        let errorMessage = 'Failed to load dashboard data';
+        
+        if (statusCode === 401) {
+          errorMessage = 'Authentication failed. Please log in again.';
+        } else if (statusCode === 403) {
+          errorMessage = 'Access denied. Please check your permissions.';
+        } else if (statusCode === 404) {
+          errorMessage = 'Transactions endpoint not found.';
+        } else if (statusCode >= 500) {
+          errorMessage = 'Server error. Please try again later.';
+        }
+        
+        Alert.alert('Error', errorMessage);
+      } else {
+        // Network connectivity issue
+        console.log('🌐 Network connectivity issue detected');
       }
     } finally {
       setLoading(false);
@@ -144,6 +219,8 @@ export default function HomeScreen() {
       maximumFractionDigits: 2,
     })}`;
   };
+
+
 
   const getStatusColor = (status: string) => {
     switch (status.toLowerCase()) {
@@ -278,7 +355,20 @@ export default function HomeScreen() {
         )}
         {/* Today's Summary Cards */}
         <View style={styles.summarySection}>
-          <Text style={styles.sectionTitle}>Today's Summary</Text>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Today's Summary</Text>
+            <TouchableOpacity 
+              onPress={() => fetchDashboardData()} 
+              style={styles.summaryRefreshButton}
+              disabled={loading}
+            >
+              <Ionicons 
+                name="refresh" 
+                size={20} 
+                color={loading ? Colors.text.muted : Colors.primary} 
+              />
+            </TouchableOpacity>
+          </View>
           
           <View style={styles.summaryGrid}>
             {/* Earnings Card */}
@@ -530,11 +620,26 @@ const styles = StyleSheet.create({
     marginTop: 24,
     marginBottom: 32,
   },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '700',
     color: Colors.text.primary,
-    marginBottom: 16,
+  },
+  summaryRefreshButton: {
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: Colors.background.card,
+    elevation: 1,
+    shadowColor: Colors.shadow.light,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
   },
   summaryGrid: {
     flexDirection: 'row',
@@ -599,12 +704,6 @@ const styles = StyleSheet.create({
   },
   transactionsSection: {
     marginBottom: 32,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
   },
   viewAllButton: {
     flexDirection: 'row',

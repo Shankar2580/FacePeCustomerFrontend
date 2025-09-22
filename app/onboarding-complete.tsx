@@ -39,6 +39,7 @@ export default function OnboardingCompleteScreen() {
   }, []);
 
   const handleContinue = () => {
+    router.dismissAll();
     router.replace('/(tabs)');
   };
 

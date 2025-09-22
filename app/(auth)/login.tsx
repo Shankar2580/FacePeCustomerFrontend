@@ -31,8 +31,9 @@ export default function LoginScreen() {
 
     const success = await login(email, password);
     if (success) {
-      // Login successful, navigation will be handled by the AuthContext and app index
+      // Login successful, clear auth stack and go to main app
       console.log('Login successful, redirecting to main app');
+      router.dismissAll();
       router.replace('/(tabs)');
     } else {
       Alert.alert('Login Failed', 'Invalid credentials. Please try again.');

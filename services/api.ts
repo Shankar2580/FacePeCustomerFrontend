@@ -141,14 +141,30 @@ export interface MessageResponse {
 
 export interface FaceMatch {
   user_id: string;
-  name: string;
+  name?: string;
   similarity: number;
 }
 
 export interface FaceVerificationResponse {
+  success: boolean;
   match_found: boolean;
-  matches: FaceMatch[];
-  total_matches: number;
+  requires_pin: boolean;
+  is_ambiguous?: boolean;
+  matches?: FaceMatch[];
+  potential_user_ids?: string[];
+  face_scan_id?: string;
+  auto_payment?: boolean;
+  message?: string;
+}
+
+export interface PinVerificationRequest {
+  pin: string;
+  face_scan_id: string;
+}
+
+export interface PinVerificationResponse {
+  success: boolean;
+  verified_user_id?: string;
   message: string;
 }
 
@@ -191,7 +207,7 @@ export const stripeAPI = {
     backendAPI.post(BACKEND_ENDPOINTS.STRIPE.MERCHANT_ONBOARD),
     
   refreshOnboarding: (): Promise<AxiosResponse<{ onboarding_url: string }>> =>
-    backendAPI.post('/auth/refresh-stripe-onboarding'),
+    backendAPI.post(BACKEND_ENDPOINTS.STRIPE.REFRESH_ONBOARDING),
     
   getStatus: (): Promise<AxiosResponse<{
     has_stripe_account: boolean;
@@ -226,7 +242,7 @@ export const stripeAPI = {
     };
     last_updated: string;
   }>> =>
-    backendAPI.get('/auth/stripe-status'),
+    backendAPI.get(BACKEND_ENDPOINTS.STRIPE.STATUS),
     
   syncStatus: (): Promise<AxiosResponse<{
     success: boolean;
@@ -245,7 +261,7 @@ export const stripeAPI = {
       pending_verification: string[];
     };
   }>> =>
-    backendAPI.post('/auth/sync-stripe-status'),
+    backendAPI.post(BACKEND_ENDPOINTS.STRIPE.SYNC_STATUS),
 };
 
 // Merchant API
@@ -260,19 +276,19 @@ export const merchantAPI = {
     
   getPaymentRequests: (): Promise<AxiosResponse<any[]>> =>
     backendAPI.get(BACKEND_ENDPOINTS.MERCHANT.PAYMENT_REQUESTS),
-    
-  initiatePayment: (merchantId: string, data: PaymentInitiateRequest): Promise<AxiosResponse<any>> =>
-    backendAPI.post(BACKEND_ENDPOINTS.PAYMENTS.INITIATE(merchantId), data),
 };
 
-// Face Recognition API
+// // Face Recognition API
 export const faceRecognitionAPI = {
-  verifyFace: (imageFile: FormData): Promise<AxiosResponse<FaceVerificationResponse>> =>
-    backendAPI.post('/merchants/verify-face', imageFile, {
+  verifyFace: (formData: FormData): Promise<AxiosResponse<FaceVerificationResponse>> =>
+    backendAPI.post(BACKEND_ENDPOINTS.MERCHANT.VERIFY_FACE, formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
     }),
+  
+  verifyPin: (data: PinVerificationRequest): Promise<AxiosResponse<PinVerificationResponse>> =>
+    backendAPI.post(BACKEND_ENDPOINTS.MERCHANT.VERIFY_PIN, data),
 };
 
 // Health Check

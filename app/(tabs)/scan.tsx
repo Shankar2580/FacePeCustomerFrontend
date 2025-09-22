@@ -6,318 +6,245 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
-  Platform,
   ScrollView,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
-import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from '@/context/AuthContext';
-import apiService from '@/services/api';
 import Colors from '@/constants/Colors';
+import FaceVerificationComponent from '@/components/FaceVerificationComponent';
+import PaymentWaitingScreen from '@/components/PaymentWaitingScreen';
 
-interface FaceMatch {
-  user_id: string;
-  name: string;
-  similarity: number;
+// Loading states enum for better state management
+enum LoadingState {
+  IDLE = 'idle',
+  FACE_VERIFICATION = 'face_verification',
+  PIN_VERIFICATION = 'pin_verification',
+  PAYMENT_PROCESSING = 'payment_processing',
+  PAYMENT_SUCCESS = 'payment_success',
+  PAYMENT_WAITING = 'payment_waiting',
 }
 
 export default function ScanScreen() {
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
   const [amount, setAmount] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [faceMatches, setFaceMatches] = useState<FaceMatch[]>([]);
-  const [selectedUser, setSelectedUser] = useState<string | null>(null);
+  const [loadingState, setLoadingState] = useState<LoadingState>(LoadingState.IDLE);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [faceVerificationComplete, setFaceVerificationComplete] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState('');
+  const [autoPayEnabled, setAutoPayEnabled] = useState(false);
 
-  const takePicture = async () => {
-    // Validate amount first
-    if (!amount.trim()) {
-      Alert.alert('Amount Required', 'Please enter amount first');
-      return;
-    }
+  const isLoading = loadingState !== LoadingState.IDLE && loadingState !== LoadingState.PAYMENT_WAITING;
+  const parsedAmount = parseFloat(amount);
+  const isValidAmount = !isNaN(parsedAmount) && parsedAmount >= 1;
 
-    const amountValue = parseFloat(amount);
-    if (isNaN(amountValue) || amountValue <= 0) {
-      Alert.alert('Invalid Amount', 'Please enter a valid amount');
-      return;
-    }
-
-    try {
-      const permission = await ImagePicker.requestCameraPermissionsAsync();
-      if (!permission.granted) {
-        Alert.alert('Permission Required', 'Camera permission is needed to take photos');
-        return;
-      }
-
-      const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.8,
-        cameraType: ImagePicker.CameraType.front,
-      });
-
-      if (!result.canceled && result.assets && result.assets[0]) {
-        await processFaceImage(result.assets[0].uri);
-      }
-    } catch (error) {
-      console.error('Error taking picture:', error);
-      Alert.alert('Error', 'Failed to take picture');
-    }
-  };
-
-  const processFaceImage = async (imageUri: string) => {
-    setLoading(true);
+  const handleFaceVerificationSuccess = (userId: string, faceScanId: string, paymentAlreadyProcessed?: boolean) => {
+    setSelectedUserId(userId);
+    setFaceVerificationComplete(true);
     
-    try {
-      // Call backend face verification API
-      const formData = new FormData();
-      formData.append('file', {
-        uri: imageUri,
-        type: 'image/jpeg',
-        name: 'face.jpg',
-      } as any);
-
-      const response = await apiService.face.verifyFace(formData);
+    if (paymentAlreadyProcessed) {
+      // PIN verification already processed the payment
+      setLoadingState(LoadingState.PAYMENT_SUCCESS);
+      setLoadingMessage('Payment complete!');
       
-      if (response.data.match_found && response.data.matches.length > 0) {
-        // Filter matches with similarity >= 70%
-        const validMatches = response.data.matches.filter(match => match.similarity >= 0.7);
-        
-        if (validMatches.length === 0) {
-          Alert.alert('No Match', 'No matching face found with 70% or higher similarity');
-          setFaceMatches([]);
-          return;
-        }
-
-        setFaceMatches(validMatches);
-
-        // If only one match, auto-select it
-        if (validMatches.length === 1) {
-          setSelectedUser(validMatches[0].user_id);
-        }
-      } else {
-        Alert.alert('No Match', 'No matching face found in database');
-        setFaceMatches([]);
-      }
-    } catch (error) {
-      console.error('Face verification error:', error);
-      Alert.alert('Error', 'Face verification failed. Please try again.');
-    } finally {
-      setLoading(false);
+      // Show success alert after a brief delay
+      setTimeout(() => {
+        const amountValue = parseFloat(amount || '0');
+        Alert.alert(
+          'Payment Complete',
+          `Payment of $${amountValue} has been processed successfully with PIN verification!`,
+          [{ text: 'OK', onPress: () => resetForm() }]
+        );
+      }, 1500);
+    } else {
+      // Backend created payment request - show waiting screen
+      setLoadingState(LoadingState.PAYMENT_WAITING);
+      setLoadingMessage('Payment request sent!');
     }
   };
 
-  const processPayment = async () => {
-    if (!selectedUser || !amount) {
-      Alert.alert('Error', 'Please select a user and enter amount');
-      return;
-    }
-
-    const amountValue = parseFloat(amount);
-    if (isNaN(amountValue) || amountValue <= 0) {
-      Alert.alert('Error', 'Please enter a valid amount');
-      return;
-    }
-
-    // Check if merchant has completed onboarding
-    if (!user?.id) {
-      Alert.alert('Error', 'Merchant information not available');
-      return;
-    }
-
-    if (user.stripe_account_status !== 'COMPLETE') {
-      Alert.alert(
-        'Complete Your Onboarding',
-        'You need to complete your merchant onboarding first before processing payments.',
-        [
-          {
-            text: 'Complete Onboarding',
-            onPress: () => router.push('/(tabs)/profile'),
-          },
-          {
-            text: 'Cancel',
-            style: 'cancel',
-          }
-        ]
-      );
-      return;
-    }
-
-    setLoading(true);
+  const handleFaceVerificationError = (error: string) => {
+    console.error('Face verification error:', error);
     
-    try {
-      const response = await apiService.merchant.initiatePayment(user.id, {
-        user_id: selectedUser,
-        face_scan_id: `scan_${Date.now()}`,
-        amount: amountValue * 100, // Convert to cents
-        currency: 'usd',
-        description: `Payment by ${user?.business_name}`,
-      });
-
-      Alert.alert(
-        'Payment Initiated',
-        `Payment request of $${amountValue} has been sent to the customer!`,
-        [
-          {
-            text: 'OK',
-            onPress: () => {
-              setAmount('');
-              setFaceMatches([]);
-              setSelectedUser(null);
-            }
-          }
-        ]
-      );
-    } catch (error: any) {
-      console.error('Payment error:', error);
-      
-      // Handle specific error messages
-      if (error.response?.status === 400) {
-        const errorMessage = error.response?.data?.detail || 'Payment processing failed';
-        if (errorMessage.includes('Stripe account not properly configured')) {
-          Alert.alert(
-            'Complete Your Onboarding',
-            'Your Stripe account setup is incomplete. Please complete your merchant onboarding first.',
-            [
-              {
-                text: 'Complete Onboarding',
-                onPress: () => router.push('/(tabs)/profile'),
-              },
-              {
-                text: 'Cancel',
-                style: 'cancel',
-              }
-            ]
-          );
-        } else {
-          Alert.alert('Error', errorMessage);
-        }
-      } else {
-        Alert.alert('Error', 'Payment processing failed. Please try again.');
-      }
-    } finally {
-      setLoading(false);
+    // If user cancelled, reset everything completely
+    if (error.includes('cancelled by user')) {
+      resetForm();
+    } else {
+      setLoadingState(LoadingState.IDLE);
     }
+    // Error is already handled by the FaceVerificationComponent
   };
 
+  // Removed processPayment: backend auto-creates payment requests in verify-face and verify-pin flows
 
-  return (
-    <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
-      {/* Header */}
-      <LinearGradient
-        colors={Colors.gradients.header}
-        style={[styles.header, { paddingTop: insets.top + 20 }]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-      >
-        <View style={styles.headerContent}>
-          <Text style={styles.headerTitle}>Face Scan Payment</Text>
-          <Text style={styles.headerSubtitle}>Scan customer's face to process payment</Text>
-        </View>
-      </LinearGradient>
+  const resetForm = () => {
+    setAmount('');
+    setSelectedUserId(null);
+    setFaceVerificationComplete(false);
+    setLoadingState(LoadingState.IDLE);
+    setLoadingMessage('');
+    setAutoPayEnabled(false);
+  };
 
-      <ScrollView 
-        style={styles.content}
-        contentContainerStyle={[
-          styles.scrollContent,
-          { paddingBottom: Math.max(insets.bottom + 80, 100) }
-        ]}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-      >
-          {/* Amount Input */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Payment Amount</Text>
-            <View style={styles.amountContainer}>
-              <Text style={styles.currencySymbol}>$</Text>
-              <TextInput
-                style={styles.amountInput}
-                value={amount}
-                onChangeText={setAmount}
-                placeholder="0.00"
-                placeholderTextColor={Colors.text.muted}
-                keyboardType="numeric"
-                returnKeyType="done"
-              />
-            </View>
-          </View>
+  const resetVerification = () => {
+    setSelectedUserId(null);
+    setFaceVerificationComplete(false);
+    setLoadingState(LoadingState.IDLE);
+    setLoadingMessage('');
+  };
 
-          {/* Scan Button */}
-          <View style={styles.section}>
-            <TouchableOpacity
-              style={[styles.scanButton, loading && styles.scanButtonDisabled]}
-              onPress={takePicture}
-              disabled={loading}
-            >
-              <LinearGradient
-                colors={Colors.gradients.primary}
-                style={styles.scanButtonGradient}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-              >
-                <Ionicons 
-                  name="camera" 
-                  size={24} 
-                  color={Colors.text.white} 
-                />
-                <Text style={styles.scanButtonText}>
-                  {loading ? 'Processing...' : 'Scan Face'}
-                </Text>
-              </LinearGradient>
-            </TouchableOpacity>
-          </View>
+  const handleCancelTransaction = () => {
+    // TODO: Call API to cancel the payment request
+    console.log('Cancelling transaction...');
+    Alert.alert(
+      'Transaction Cancelled',
+      'The payment request has been cancelled.',
+      [{ text: 'OK', onPress: resetForm }]
+    );
+  };
 
-          {/* Face Matches */}
-          {faceMatches.length > 0 && (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Select Customer</Text>
-              <View style={styles.matchesList}>
-                {faceMatches.map((match) => (
-                  <TouchableOpacity
-                    key={match.user_id}
-                    style={[
-                      styles.matchItem,
-                      selectedUser === match.user_id && styles.matchItemSelected
-                    ]}
-                    onPress={() => setSelectedUser(match.user_id)}
-                  >
-                    <View style={styles.matchLeft}>
-                      <View style={styles.matchAvatar}>
-                        <Text style={styles.matchAvatarText}>
-                          {match.name.charAt(0)}
-                        </Text>
-                      </View>
-                      <View style={styles.matchInfo}>
-                        <Text style={styles.matchName}>{match.name}</Text>
-                        <Text style={styles.matchSimilarity}>
-                          {Math.round(match.similarity * 100)}% match
-                        </Text>
-                      </View>
-                    </View>
-                    {selectedUser === match.user_id && (
-                      <Ionicons name="checkmark-circle" size={24} color={Colors.primary} />
-                    )}
-                  </TouchableOpacity>
-                ))}
-              </View>
+  const handleAutoPayToggle = (enabled: boolean) => {
+    setAutoPayEnabled(enabled);
+    // TODO: Save auto-pay preference to backend
+    console.log('Auto-pay', enabled ? 'enabled' : 'disabled');
+  };
 
-              {/* Process Payment Button */}
-              <TouchableOpacity
-                style={[styles.paymentButton, (!selectedUser || loading) && styles.paymentButtonDisabled]}
-                onPress={processPayment}
-                disabled={!selectedUser || loading}
-              >
-                <Text style={styles.paymentButtonText}>
-                  {loading ? 'Processing...' : `Process Payment - $${amount}`}
-                </Text>
-              </TouchableOpacity>
+  // Loading overlay component
+  const LoadingOverlay = () => {
+    if (!isLoading) return null;
+
+    return (
+      <View style={styles.loadingOverlay}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+          <Text style={styles.loadingText}>{loadingMessage}</Text>
+          
+          {loadingState === LoadingState.PAYMENT_SUCCESS && (
+            <View style={styles.successIcon}>
+              <Ionicons name="checkmark-circle" size={48} color={Colors.success} />
             </View>
           )}
+        </View>
+      </View>
+    );
+  };
+
+  return (
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+      <ScrollView 
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        scrollEnabled={!isLoading} // Disable scrolling during loading
+      >
+        {/* Header */}
+        <View style={styles.header}>
+          <LinearGradient
+            colors={Colors.gradients.header}
+            style={styles.headerGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          >
+            <View style={styles.headerContent}>
+              <Ionicons name="scan" size={32} color={Colors.text.white} />
+              <Text style={styles.headerTitle}>Scan & Pay</Text>
+              <Text style={styles.headerSubtitle}>
+                Verify customer identity and process payment
+              </Text>
+            </View>
+          </LinearGradient>
+        </View>
+
+        {/* Amount Input Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Payment Amount</Text>
+          <View style={styles.amountContainer}>
+            <Text style={styles.currencySymbol}>$</Text>
+            <TextInput
+              style={styles.amountInput}
+              value={amount}
+              onChangeText={setAmount}
+              placeholder="0.00"
+              placeholderTextColor={Colors.text.muted}
+              keyboardType="numeric"
+              editable={!isLoading}
+            />
+          </View>
+        </View>
+
+        {/* Face Verification Section */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Customer Verification</Text>
+            {faceVerificationComplete && !isLoading && (
+              <TouchableOpacity onPress={resetVerification}>
+                <Text style={styles.resetText}>Reset</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {faceVerificationComplete && !isLoading ? (
+            <View style={styles.verificationComplete}>
+              <View style={styles.successIconContainer}>
+                <Ionicons name="checkmark-circle" size={32} color={Colors.success} />
+              </View>
+              <Text style={styles.successTitle}>Customer Verified!</Text>
+              <Text style={styles.successSubtitle}>
+                Face verification completed successfully
+              </Text>
+            </View>
+          ) : (
+                      <FaceVerificationComponent
+            onVerificationSuccess={handleFaceVerificationSuccess}
+            onVerificationError={handleFaceVerificationError}
+            disabled={isLoading || !isValidAmount}
+            amount={Math.round(parseFloat(amount || '0') * 100)} // Convert to cents
+            currency="USD"
+            description={`Payment by ${user?.business_name || 'Merchant'}`}
+            onLoadingStateChange={(loading, message) => {
+              if (loading && message) {
+                if (message.includes('PIN')) {
+                  setLoadingState(LoadingState.PIN_VERIFICATION);
+                } else if (message.includes('face')) {
+                  setLoadingState(LoadingState.FACE_VERIFICATION);
+                }
+                setLoadingMessage(message);
+              }
+            }}
+          />
+          )}
+        </View>
+
+        {/* Payment Processing Status */}
+        {faceVerificationComplete && loadingState === LoadingState.PAYMENT_SUCCESS && (
+          <View style={styles.section}>
+            <View style={styles.processingStatus}>
+              <Ionicons name={loadingMessage.includes('complete') ? "checkmark-circle" : "send"} size={24} color={Colors.success} />
+              <Text style={styles.processingText}>
+                {loadingMessage.includes('complete') 
+                  ? 'Payment completed successfully!'
+                  : 'Payment request sent to customer!'}
+              </Text>
+            </View>
+          </View>
+        )}
       </ScrollView>
+
+      {/* Loading Overlay */}
+      <LoadingOverlay />
+
+      {/* Payment Waiting Screen */}
+      <PaymentWaitingScreen
+        visible={loadingState === LoadingState.PAYMENT_WAITING}
+        amount={parsedAmount || 0}
+        customerInfo="Customer"
+        onCancel={handleCancelTransaction}
+        onAutoPayToggle={handleAutoPayToggle}
+        autoPayEnabled={autoPayEnabled}
+      />
     </SafeAreaView>
   );
 }
@@ -327,168 +254,149 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background.primary,
   },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 20,
+  },
   header: {
-    paddingHorizontal: 20,
-    paddingVertical: 20,
+    marginBottom: 24,
+  },
+  headerGradient: {
     borderBottomLeftRadius: 16,
     borderBottomRightRadius: 16,
   },
   headerContent: {
+    padding: 24,
     alignItems: 'center',
   },
   headerTitle: {
-    fontSize: 20,
-    fontWeight: '700',
+    fontSize: 28,
+    fontWeight: 'bold',
     color: Colors.text.white,
-    marginBottom: 4,
+    marginTop: 12,
+    marginBottom: 8,
   },
   headerSubtitle: {
-    fontSize: 14,
+    fontSize: 16,
     color: Colors.text.white,
+    textAlign: 'center',
     opacity: 0.9,
   },
-  content: {
-    flex: 1,
+  section: {
+    marginBottom: 24,
     paddingHorizontal: 20,
   },
-  section: {
-    marginTop: 24,
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
   },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: 20,
     fontWeight: '600',
     color: Colors.text.primary,
-    marginBottom: 12,
+  },
+  resetText: {
+    color: Colors.primary,
+    fontSize: 16,
+    fontWeight: '500',
   },
   amountContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.background.card,
+    backgroundColor: Colors.background.secondary,
     borderRadius: 16,
     paddingHorizontal: 20,
     paddingVertical: 4,
     borderWidth: 2,
     borderColor: Colors.border.light,
-    elevation: 2,
-    shadowColor: Colors.shadow.light,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
   },
   currencySymbol: {
     fontSize: 24,
-    fontWeight: '700',
+    fontWeight: 'bold',
     color: Colors.text.primary,
     marginRight: 8,
   },
   amountInput: {
     flex: 1,
     fontSize: 24,
-    fontWeight: '600',
+    fontWeight: 'bold',
     color: Colors.text.primary,
     paddingVertical: 16,
   },
-  scanButton: {
+  verificationComplete: {
+    alignItems: 'center',
+    backgroundColor: Colors.background.secondary,
+    padding: 24,
     borderRadius: 16,
-    overflow: 'hidden',
-    elevation: 4,
-    shadowColor: Colors.shadow.medium,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
+    borderWidth: 2,
+    borderColor: Colors.success,
   },
-  scanButtonDisabled: {
-    opacity: 0.6,
+  successIconContainer: {
+    marginBottom: 16,
   },
-  scanButtonGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 18,
-    paddingHorizontal: 24,
-    gap: 12,
-  },
-  scanButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors.text.white,
-  },
-  matchesList: {
-    backgroundColor: Colors.background.card,
-    borderRadius: 16,
-    padding: 4,
-    elevation: 2,
-    shadowColor: Colors.shadow.light,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  matchItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border.light,
-  },
-  matchItemSelected: {
-    backgroundColor: Colors.accent.lavender,
-  },
-  matchLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  matchAvatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: Colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  matchAvatarText: {
+  successTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: Colors.text.white,
+    color: Colors.success,
+    marginBottom: 8,
   },
-  matchInfo: {
-    flex: 1,
-  },
-  matchName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors.text.primary,
-    marginBottom: 2,
-  },
-  matchSimilarity: {
+  successSubtitle: {
     fontSize: 14,
     color: Colors.text.secondary,
+    textAlign: 'center',
   },
-  paymentButton: {
-    backgroundColor: Colors.success,
-    borderRadius: 12,
-    paddingVertical: 16,
-    paddingHorizontal: 24,
+  processingStatus: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 16,
-    elevation: 2,
-    shadowColor: Colors.shadow.light,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    backgroundColor: Colors.background.secondary,
+    padding: 20,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: Colors.success,
+    gap: 12,
   },
-  paymentButtonDisabled: {
-    backgroundColor: Colors.text.muted,
-  },
-  paymentButtonText: {
+  processingText: {
     fontSize: 16,
     fontWeight: '600',
-    color: Colors.text.white,
+    color: Colors.success,
+    flex: 1,
   },
-  scrollContent: {
-    paddingBottom: 100,
+  // Loading overlay styles
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  loadingContainer: {
+    backgroundColor: Colors.background.primary,
+    padding: 32,
+    borderRadius: 20,
+    alignItems: 'center',
+    minWidth: 200,
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+  },
+  loadingText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: Colors.text.primary,
+    marginTop: 16,
+    textAlign: 'center',
+  },
+  successIcon: {
+    marginTop: 16,
   },
 }); 

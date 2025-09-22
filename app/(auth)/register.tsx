@@ -127,7 +127,11 @@ export default function RegisterScreen() {
           [
             {
               text: 'Continue',
-              onPress: () => router.replace('/(tabs)'),
+              onPress: () => {
+                // Navigate to tabs and clear the auth stack
+                router.dismissAll();
+                router.replace('/(tabs)');
+              },
             }
           ]
         );
