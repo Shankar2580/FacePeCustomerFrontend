@@ -1,14 +1,14 @@
 {
   "expo": {
     "name": "FP Merchant",
-    "slug": "frontend",
+    "slug": "merchant-facepe",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/logo.png",
     "scheme": "fpmerchant",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "light",
     "splash": {
-      "image": "./assets/images/splash-icon.png",
+      "image": "./assets/images/logo.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
@@ -16,14 +16,25 @@
       "**/*"
     ],
     "ios": {
+      "icon": "./assets/images/logo.png",
       "supportsTablet": true,
-      "bundleIdentifier": "com.fpmerchant.app"
+      "bundleIdentifier": "com.fpmerchant.app",
+      "infoPlist": {
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true
+        },
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
+      "icon": "./assets/images/logo.png",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "foregroundImage": "./assets/images/logo.png",
+        "monochromeImage": "./assets/images/logo.png",
         "backgroundColor": "#ffffff"
       },
+      "edgeToEdgeEnabled": true,
+      "softwareKeyboardLayoutMode": "pan",
       "package": "com.fpmerchant.app",
       "permissions": [
         "android.permission.CAMERA",
@@ -42,7 +53,7 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/splash-icon.png",
+          "image": "./assets/images/logo.png",
           "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#ffffff"
@@ -56,9 +67,8 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "a66c8a5a-52bd-474a-b8ed-51337326f564"
+        "projectId": "33bc462e-37f5-4062-9d0a-7cad1f4d9a2f"
       }
-    },
-    "owner": "vu2s222"
+    }
   }
 }

@@ -1,36 +1,22 @@
-import { useEffect } from 'react';
-import { View, StyleSheet } from 'react-native';
 import { Redirect } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
-import Colors from '@/constants/Colors';
+import { View, ActivityIndicator } from 'react-native';
+import Colors from '@/constants/colors';
 
 export default function Index() {
   const { isAuthenticated, isLoading } = useAuth();
 
-  useEffect(() => {
-    console.log('Index - Auth status:', { isAuthenticated, isLoading });
-  }, [isAuthenticated, isLoading]);
-
-  // Show loading screen while checking auth status
   if (isLoading) {
     return (
-      <View style={styles.container}>
-        {/* The AuthContext will handle checking credentials */}
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.background.primary }}>
+        <ActivityIndicator size="large" color={Colors.primary} />
       </View>
     );
   }
 
-  // Redirect based on authentication status
   if (isAuthenticated) {
     return <Redirect href="/(tabs)" />;
-  } else {
-    return <Redirect href="/(auth)/login" />;
   }
-}
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background.primary,
-  },
-}); 
+  return <Redirect href="/(auth)/login" />;
+}
