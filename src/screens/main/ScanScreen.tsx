@@ -16,6 +16,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { sharedHeaderStyles } from '@/constants/layout';
 
 // Loading states enum for better state management
 enum LoadingState {
@@ -159,30 +160,23 @@ export default function ScanScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      {/* Gradient Header */}
+      <LinearGradient
+        colors={Colors.gradients.header}
+        style={styles.gradientHeader}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+      >
+        <Text style={styles.headerTitle}>Scan</Text>
+      </LinearGradient>
+
       <ScrollView 
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
         scrollEnabled={!isLoading} // Disable scrolling during loading
       >
-        {/* Header */}
-        <View style={styles.header}>
-          <LinearGradient
-            colors={Colors.gradients.header}
-            style={styles.headerGradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-          >
-            <View style={styles.headerContent}>
-              <Ionicons name="scan" size={32} color={Colors.text.white} />
-              <Text style={styles.headerTitle}>Scan & Pay</Text>
-              <Text style={styles.headerSubtitle}>
-                Verify customer identity and process payment
-              </Text>
-            </View>
-          </LinearGradient>
-        </View>
 
         {/* Amount Input Section */}
         <View style={styles.section}>
@@ -275,48 +269,49 @@ export default function ScanScreen() {
       
       {/* Styled Alert Component */}
       <AlertComponent />
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background.primary,
+    backgroundColor: '#F8F7FF',
+  },
+  gradientHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+    paddingBottom: 16,
+    minHeight: 80,
+    borderBottomLeftRadius: 4,
+    borderBottomRightRadius: 4,
+    marginBottom: 24,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  headerTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
   },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
+    paddingHorizontal: 24,
     paddingBottom: 20,
-  },
-  header: {
-    marginBottom: 24,
-  },
-  headerGradient: {
-    borderBottomLeftRadius: 16,
-    borderBottomRightRadius: 16,
-  },
-  headerContent: {
-    padding: 24,
-    alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: Colors.text.white,
-    marginTop: 12,
-    marginBottom: 8,
-  },
-  headerSubtitle: {
-    fontSize: 16,
-    color: Colors.text.white,
-    textAlign: 'center',
-    opacity: 0.9,
   },
   section: {
     marginBottom: 24,
-    paddingHorizontal: 20,
   },
   sectionHeader: {
     flexDirection: 'row',

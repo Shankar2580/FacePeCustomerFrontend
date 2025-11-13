@@ -7,7 +7,7 @@ import {
   TouchableOpacity,
   RefreshControl,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -15,6 +15,7 @@ import { useAuth } from '@/context/AuthContext';
 import apiService from '@/services/api/apiService';
 import Colors from '@/constants/colors';
 import { useStyledAlert } from '@/components/ui/StyledAlert';
+import { sharedHeaderStyles } from '@/constants/layout';
 
 interface MerchantProfile {
   id: string;
@@ -30,6 +31,7 @@ interface MerchantProfile {
 export default function ProfileScreen() {
   const { user, logout } = useAuth();
   const { showAlert, AlertComponent } = useStyledAlert();
+  const insets = useSafeAreaInsets();
   const [profile, setProfile] = useState<MerchantProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -187,7 +189,7 @@ export default function ProfileScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={[styles.container, { paddingTop: insets.top }]} edges={['left', 'right', 'bottom']}>
         <View style={styles.loadingContainer}>
           <Text style={styles.loadingText}>Loading profile...</Text>
         </View>
@@ -198,36 +200,39 @@ export default function ProfileScreen() {
   const accountStatus = getAccountStatus();
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
-      {/* Header */}
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      {/* Gradient Header */}
       <LinearGradient
         colors={Colors.gradients.header}
-        style={styles.header}
+        style={styles.gradientHeader}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
       >
         <View style={styles.headerContent}>
-          <View style={styles.profileAvatar}>
-            <Text style={styles.profileAvatarText}>
-              {profile?.business_name?.charAt(0) || 'M'}
-            </Text>
-          </View>
-          <Text style={styles.businessName}>
-            {profile?.business_name || 'Merchant'}
-          </Text>
-          <Text style={styles.emailText}>
-            {profile?.email || 'merchant@example.com'}
-          </Text>
-          
-          {/* Account Status */}
-          <View style={[styles.statusBadge, { backgroundColor: accountStatus.bg }]}>
-            <Ionicons name={accountStatus.icon as any} size={14} color={accountStatus.color} />
-            <Text style={[styles.statusText, { color: accountStatus.color }]}>
-              {accountStatus.text}
-            </Text>
-          </View>
+          {/* Empty header for profile */}
         </View>
       </LinearGradient>
+
+      {/* User Profile Card - Outside ScrollView to stay fixed and overlap header */}
+      <View style={styles.profileCard}>
+        <View style={styles.profileAvatar}>
+          <Text style={styles.profileAvatarText}>
+            {profile?.business_name?.charAt(0) || 'M'}
+          </Text>
+        </View>
+        <Text style={styles.businessName}>
+          {profile?.business_name || 'Merchant'}
+        </Text>
+        <Text style={styles.emailText}>
+          {profile?.email || 'merchant@example.com'}
+        </Text>
+        <View style={[styles.statusBadge, { backgroundColor: accountStatus.bg }]}>
+          <Ionicons name={accountStatus.icon as any} size={14} color={accountStatus.color} />
+          <Text style={[styles.statusText, { color: accountStatus.color }]}>
+            {accountStatus.text}
+          </Text>
+        </View>
+      </View>
 
       <ScrollView
         style={styles.content}
@@ -241,6 +246,7 @@ export default function ProfileScreen() {
         }
         showsVerticalScrollIndicator={false}
       >
+
         {/* Account Summary */}
         <View style={styles.summarySection}>
           <Text style={styles.sectionTitle}>Account Summary</Text>
@@ -329,14 +335,14 @@ export default function ProfileScreen() {
       
       {/* Styled Alert Component */}
       <AlertComponent />
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background.primary,
+    backgroundColor: '#F8F7FF',
   },
   loadingContainer: {
     flex: 1,
@@ -347,25 +353,58 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: Colors.text.secondary,
   },
-  header: {
-    paddingHorizontal: 20,
-    paddingVertical: 32,
-    borderBottomLeftRadius: 16,
-    borderBottomRightRadius: 16,
+  gradientHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+    paddingBottom: 16,
+    minHeight: 80,
+    borderBottomLeftRadius: 4,
+    borderBottomRightRadius: 4,
+    marginBottom: 24,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
   headerContent: {
+    flexDirection: 'row',
+    justifyContent: 'center',
     alignItems: 'center',
+  },
+  profileCard: {
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 24,
+    marginTop: -75,
+    borderRadius: 20,
+    padding: 24,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 8,
+    position: 'relative',
   },
   profileAvatar: {
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: Colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 4,
+    borderColor: Colors.accent.lavender,
     marginBottom: 16,
-    borderWidth: 3,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
   },
   profileAvatarText: {
     fontSize: 32,
@@ -373,16 +412,17 @@ const styles = StyleSheet.create({
     color: Colors.text.white,
   },
   businessName: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: Colors.text.white,
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#1F2937',
+    textAlign: 'center',
     marginBottom: 4,
   },
   emailText: {
-    fontSize: 14,
-    color: Colors.text.white,
-    opacity: 0.9,
-    marginBottom: 12,
+    fontSize: 16,
+    color: '#6B7280',
+    marginBottom: 2,
+    textAlign: 'center',
   },
   statusBadge: {
     flexDirection: 'row',
@@ -391,6 +431,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 16,
     gap: 6,
+    marginTop: 12,
   },
   statusText: {
     fontSize: 12,
@@ -398,11 +439,11 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    paddingHorizontal: 20,
   },
   summarySection: {
     marginTop: 24,
     marginBottom: 24,
+    marginHorizontal: 24,
   },
   sectionTitle: {
     fontSize: 16,
@@ -442,6 +483,7 @@ const styles = StyleSheet.create({
   },
   section: {
     marginBottom: 24,
+    marginHorizontal: 24,
   },
   sectionCard: {
     backgroundColor: Colors.background.card,
@@ -510,6 +552,7 @@ const styles = StyleSheet.create({
   logoutSection: {
     marginTop: 16,
     marginBottom: 32,
+    marginHorizontal: 24,
   },
   logoutButton: {
     flexDirection: 'row',

@@ -7,7 +7,7 @@ import {
   RefreshControl,
   TouchableOpacity,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -16,6 +16,7 @@ import apiService from '@/services/api/apiService';
 import Colors from '@/constants/colors';
 import { Linking } from 'react-native';
 import { useStyledAlert } from '@/components/ui/StyledAlert';
+import { sharedHeaderStyles } from '@/constants/layout';
 
 interface DashboardData {
   todayEarnings: number;
@@ -33,6 +34,7 @@ interface DashboardData {
 export default function HomeScreen() {
   const { user, logout, startMerchantOnboarding, refreshUserProfile, refreshStripeOnboarding } = useAuth();
   const { showAlert, AlertComponent } = useStyledAlert();
+  const insets = useSafeAreaInsets();
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -60,16 +62,7 @@ export default function HomeScreen() {
       });
       
       const todayEarnings = todayTransactions.reduce((sum: number, t: any) => {
-        let amount = t.amount || 0;
-        // Convert from cents to dollars if amount is in cents (common with payment processors)
-        // Check if amount seems to be in cents (typically > 100 for small dollar amounts)
-        if (typeof amount === 'number' && amount > 0) {
-          // If the amount seems unusually large (likely in cents), convert to dollars
-          // This is a heuristic - you might need to adjust based on your backend data format
-          if (amount >= 100 && Number.isInteger(amount)) {
-            amount = amount / 100;
-          }
-        }
+        const amount = t.amount || 0;
         return sum + amount;
       }, 0);
 
@@ -78,10 +71,7 @@ export default function HomeScreen() {
         const statusStr = (t?.status || '').toString().toLowerCase();
         const isSucceeded = statusStr === 'succeeded' || statusStr === 'completed';
         if (isSucceeded) {
-          let amount = t.amount || 0;
-          if (typeof amount === 'number' && amount > 0 && amount >= 100 && Number.isInteger(amount)) {
-            amount = amount / 100;
-          }
+          const amount = t.amount || 0;
           return sum + amount;
         }
         return sum;
@@ -90,21 +80,14 @@ export default function HomeScreen() {
       setDashboardData({
         todayEarnings,
         todayTransactions: todayTransactions.length,
-        allTimeEarnings, // Add this for debugging
-        recentTransactions: transactions.slice(0, 5).map((t: any) => {
-          let amount = t.amount || 0;
-          // Apply same amount conversion logic for consistency
-          if (typeof amount === 'number' && amount > 0 && amount >= 100 && Number.isInteger(amount)) {
-            amount = amount / 100;
-          }
-          return {
-            id: t.id,
-            amount: amount,
-            status: t.status || 'pending',
-            customer_name: t.customer_name || 'Customer',
-            created_at: t.created_at || new Date().toISOString(),
-          };
-        })
+        allTimeEarnings,
+        recentTransactions: transactions.slice(0, 5).map((t: any) => ({
+          id: t.id,
+          amount: t.amount || 0,
+          status: t.status || 'pending',
+          customer_name: t.customer_name || 'Customer',
+          created_at: t.created_at || new Date().toISOString(),
+        }))
       });
     } catch (error: any) {
       
@@ -230,7 +213,7 @@ export default function HomeScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={[styles.container, { paddingTop: insets.top }]} edges={['left', 'right', 'bottom']}>
         <View style={styles.loadingContainer}>
           <Text style={styles.loadingText}>Loading...</Text>
         </View>
@@ -239,7 +222,7 @@ export default function HomeScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
       {/* Header */}
       <LinearGradient
         colors={Colors.gradients.header}
@@ -248,15 +231,18 @@ export default function HomeScreen() {
         end={{ x: 1, y: 1 }}
       >
         <View style={styles.headerContent}>
-          <View style={styles.headerLeft}>
-            <Text style={styles.welcomeText}>Welcome back,</Text>
-            <Text style={styles.merchantName}>{user?.business_name || 'Merchant'}</Text>
+          <View>
+            <Text style={styles.headerGreeting}>Hello, {user?.business_name?.split(' ')[0] || 'Merchant'}</Text>
           </View>
           <TouchableOpacity 
             style={styles.profileButton}
             onPress={() => router.push('/(tabs)/profile')}
           >
-            <Ionicons name="person-circle-outline" size={28} color={Colors.text.white} />
+            <View style={styles.avatarContainer}>
+              <Text style={styles.avatarText}>
+                {user?.business_name?.charAt(0) || 'M'}
+              </Text>
+            </View>
           </TouchableOpacity>
         </View>
       </LinearGradient>
@@ -457,13 +443,12 @@ export default function HomeScreen() {
               {dashboardData.recentTransactions.slice(0, 5).map((transaction) => (
                 <View key={transaction.id} style={styles.transactionItem}>
                   <View style={styles.transactionLeft}>
-                    <View style={[
-                      styles.transactionIcon,
-                      { backgroundColor: getStatusBg(transaction.status) }
-                    ]}>
+                    <View style={styles.transactionIconWrapper}>
                       <Ionicons 
-                        name="card-outline" 
-                        size={18} 
+                        name={transaction.status.toLowerCase() === 'completed' ? 'checkmark-circle' : 
+                              transaction.status.toLowerCase() === 'pending' ? 'time-outline' : 
+                              'close-circle'} 
+                        size={40} 
                         color={getStatusColor(transaction.status)} 
                       />
                     </View>
@@ -472,7 +457,10 @@ export default function HomeScreen() {
                         {transaction.customer_name || 'Customer'}
                       </Text>
                       <Text style={styles.transactionTime}>
-                        {new Date(transaction.created_at).toLocaleTimeString('en-US', {
+                        {new Date(transaction.created_at).toLocaleDateString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                        })} • {new Date(transaction.created_at).toLocaleTimeString('en-US', {
                           hour: '2-digit',
                           minute: '2-digit',
                         })}
@@ -484,17 +472,6 @@ export default function HomeScreen() {
                     <Text style={styles.transactionAmount}>
                       {formatCurrency(transaction.amount)}
                     </Text>
-                    <View style={[
-                      styles.statusBadge,
-                      { backgroundColor: getStatusBg(transaction.status) }
-                    ]}>
-                      <Text style={[
-                        styles.statusText,
-                        { color: getStatusColor(transaction.status) }
-                      ]}>
-                        {transaction.status}
-                      </Text>
-                    </View>
                   </View>
                 </View>
               ))}
@@ -511,14 +488,14 @@ export default function HomeScreen() {
       
       {/* Styled Alert Component */}
       <AlertComponent />
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background.primary,
+    backgroundColor: '#F8F7FF',
   },
   loadingContainer: {
     flex: 1,
@@ -530,36 +507,54 @@ const styles = StyleSheet.create({
     color: Colors.text.secondary,
   },
   header: {
-    paddingHorizontal: 20,
-    paddingVertical: 20,
-    borderBottomLeftRadius: 16,
-    borderBottomRightRadius: 16,
-  },
-  headerContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+    paddingBottom: 16,
+    minHeight: 80,
+    borderBottomLeftRadius: 4,
+    borderBottomRightRadius: 4,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
-  headerLeft: {
+  headerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     flex: 1,
   },
-  welcomeText: {
-    fontSize: 14,
-    color: Colors.text.white,
-    opacity: 0.9,
-    marginBottom: 4,
-  },
-  merchantName: {
+  headerGreeting: {
     fontSize: 20,
-    fontWeight: '700',
-    color: Colors.text.white,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
   profileButton: {
-    padding: 4,
+    padding: 0,
+  },
+  avatarContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarText: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: 'bold',
   },
   content: {
     flex: 1,
-    paddingHorizontal: 20,
+    paddingHorizontal: 24,
   },
   onboardingBanner: {
     marginTop: 20,
@@ -631,7 +626,7 @@ const styles = StyleSheet.create({
   },
   summarySection: {
     marginTop: 24,
-    marginBottom: 32,
+    marginBottom: 24,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -640,9 +635,9 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: Colors.text.primary,
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#1F2937',
   },
   summaryRefreshButton: {
     padding: 8,
@@ -660,29 +655,32 @@ const styles = StyleSheet.create({
   },
   summaryCard: {
     flex: 1,
-    borderRadius: 16,
+    borderRadius: 20,
     overflow: 'hidden',
-    elevation: 3,
-    shadowColor: Colors.shadow.medium,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
   },
   summaryCardGradient: {
-    padding: 20,
+    padding: 24,
     alignItems: 'center',
+    minHeight: 140,
+    justifyContent: 'center',
   },
   summaryAmount: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: Colors.text.white,
-    marginTop: 8,
-    marginBottom: 4,
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    marginTop: 12,
+    marginBottom: 8,
   },
   summaryLabel: {
     fontSize: 14,
-    color: Colors.text.white,
-    opacity: 0.9,
+    color: '#FFFFFF',
+    fontWeight: '500',
+    opacity: 0.95,
   },
   payoutCard: {
     marginTop: 20,
@@ -775,35 +773,30 @@ const styles = StyleSheet.create({
     color: Colors.primary,
   },
   transactionsList: {
-    backgroundColor: Colors.background.card,
-    borderRadius: 16,
-    padding: 4,
-    elevation: 2,
-    shadowColor: Colors.shadow.light,
-    shadowOffset: { width: 0, height: 1 },
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 8,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowRadius: 8,
   },
   transactionItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 16,
+    paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border.light,
+    borderBottomColor: '#F3F4F6',
   },
   transactionLeft: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
   },
-  transactionIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
+  transactionIconWrapper: {
     marginRight: 12,
   },
   transactionInfo: {
@@ -812,48 +805,39 @@ const styles = StyleSheet.create({
   transactionCustomer: {
     fontSize: 16,
     fontWeight: '600',
-    color: Colors.text.primary,
-    marginBottom: 2,
+    color: '#1F2937',
+    marginBottom: 4,
   },
   transactionTime: {
-    fontSize: 12,
-    color: Colors.text.muted,
+    fontSize: 13,
+    color: '#6B7280',
   },
   transactionRight: {
     alignItems: 'flex-end',
+    justifyContent: 'center',
   },
   transactionAmount: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: Colors.text.primary,
-    marginBottom: 4,
-  },
-  statusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  statusText: {
-    fontSize: 10,
-    fontWeight: '600',
-    textTransform: 'uppercase',
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#1F2937',
   },
   emptyState: {
     alignItems: 'center',
-    paddingVertical: 48,
-    backgroundColor: Colors.background.card,
-    borderRadius: 16,
+    paddingVertical: 56,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
   },
   emptyStateText: {
     fontSize: 16,
     fontWeight: '600',
-    color: Colors.text.secondary,
+    color: '#1F2937',
     marginTop: 16,
     marginBottom: 4,
   },
   emptyStateSubtext: {
     fontSize: 14,
-    color: Colors.text.muted,
+    color: '#6B7280',
     textAlign: 'center',
+    paddingHorizontal: 24,
   },
 });

@@ -7,13 +7,14 @@ import {
   TouchableOpacity,
   RefreshControl,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/context/AuthContext';
 import apiService from '@/services/api/apiService';
 import Colors from '@/constants/colors';
 import { useStyledAlert } from '@/components/ui/StyledAlert';
+import { sharedHeaderStyles } from '@/constants/layout';
 
 interface Transaction {
   id: string;
@@ -29,6 +30,7 @@ type FilterType = 'all' | 'completed' | 'pending' | 'failed';
 export default function HistoryScreen() {
   const { user } = useAuth();
   const { showAlert, AlertComponent } = useStyledAlert();
+  const insets = useSafeAreaInsets();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [filteredTransactions, setFilteredTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
@@ -165,7 +167,7 @@ export default function HistoryScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={[styles.container, { paddingTop: insets.top }]} edges={['left', 'right', 'bottom']}>
         <View style={styles.loadingContainer}>
           <Text style={styles.loadingText}>Loading transactions...</Text>
         </View>
@@ -174,18 +176,15 @@ export default function HistoryScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
-      {/* Header */}
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      {/* Gradient Header */}
       <LinearGradient
         colors={Colors.gradients.header}
-        style={styles.header}
+        style={styles.gradientHeader}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
       >
-        <View style={styles.headerContent}>
-          <Text style={styles.headerTitle}>Transaction History</Text>
-          <Text style={styles.headerSubtitle}>View all your payment transactions</Text>
-        </View>
+        <Text style={styles.headerTitle}>Transaction History</Text>
       </LinearGradient>
 
       {/* Filter Tabs */}
@@ -228,6 +227,13 @@ export default function HistoryScreen() {
         }
         showsVerticalScrollIndicator={false}
       >
+        <View style={styles.summaryIntro}>
+          <Text style={styles.summaryTitle}>Payment activity</Text>
+          <Text style={styles.summarySubtitle}>
+            Filter by status to quickly review transactions.
+          </Text>
+        </View>
+
         {filteredTransactions.length > 0 ? (
           <View style={styles.transactionsList}>
             {filteredTransactions.map((transaction) => (
@@ -291,14 +297,14 @@ export default function HistoryScreen() {
       
       {/* Styled Alert Component */}
       <AlertComponent />
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background.primary,
+    backgroundColor: '#F8F7FF',
   },
   loadingContainer: {
     flex: 1,
@@ -309,32 +315,38 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: Colors.text.secondary,
   },
-  header: {
-    paddingHorizontal: 20,
-    paddingVertical: 20,
-    borderBottomLeftRadius: 16,
-    borderBottomRightRadius: 16,
-  },
-  headerContent: {
+  gradientHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+    paddingBottom: 16,
+    minHeight: 80,
+    borderBottomLeftRadius: 4,
+    borderBottomRightRadius: 4,
+    marginBottom: 24,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
   headerTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: Colors.text.white,
-    marginBottom: 4,
-  },
-  headerSubtitle: {
-    fontSize: 14,
-    color: Colors.text.white,
-    opacity: 0.9,
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
   },
   filtersContainer: {
     paddingVertical: 16,
-    backgroundColor: Colors.background.primary,
+    backgroundColor: '#F8F7FF',
+    marginTop: -8,
   },
   filtersContent: {
-    paddingHorizontal: 20,
+    paddingHorizontal: 24,
     gap: 12,
   },
   filterTab: {
@@ -361,7 +373,20 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    paddingHorizontal: 20,
+    paddingHorizontal: 24,
+  },
+  summaryIntro: {
+    marginBottom: 16,
+  },
+  summaryTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.text.primary,
+    marginBottom: 4,
+  },
+  summarySubtitle: {
+    fontSize: 13,
+    color: Colors.text.secondary,
   },
   transactionsList: {
     backgroundColor: Colors.background.card,
