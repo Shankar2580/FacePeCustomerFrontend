@@ -79,6 +79,8 @@ export interface RegisterRequest {
   password: string;
   business_name: string;
   mobile_number: string;
+  email_verification_code: string;
+  mobile_verification_code: string;
 }
 
 export interface LoginRequest {
@@ -112,6 +114,7 @@ export interface ForgotPasswordRequest {
 export interface ResetPasswordRequest {
   mobile_number: string;
   verification_code: string;
+  email_verification_code: string;
   new_password: string;
 }
 
@@ -156,6 +159,7 @@ export interface PaymentRequest {
   stripe_payment_intent_id?: string;
   created_at: string;
   updated_at: string;
+  expires_at: string;
 }
 
 export interface FaceVerificationResponse {
@@ -211,6 +215,21 @@ export const authAPI = {
 
   resetPassword: (data: ResetPasswordRequest): Promise<AxiosResponse<MessageResponse>> =>
     backendAPI.post(BACKEND_ENDPOINTS.AUTH.RESET_PASSWORD, data),
+};
+
+// Verification API
+export const verificationAPI = {
+  sendEmailCode: (email: string): Promise<AxiosResponse<MessageResponse>> =>
+    backendAPI.post(BACKEND_ENDPOINTS.VERIFICATION.SEND_EMAIL_CODE, { email }),
+    
+  verifyEmailCode: (email: string, code: string): Promise<AxiosResponse<MessageResponse>> =>
+    backendAPI.post(BACKEND_ENDPOINTS.VERIFICATION.VERIFY_EMAIL_CODE, { email, code }),
+    
+  sendMobileCode: (mobile_number: string): Promise<AxiosResponse<MessageResponse>> =>
+    backendAPI.post(BACKEND_ENDPOINTS.VERIFICATION.SEND_MOBILE_CODE, { mobile_number }),
+    
+  verifyMobileCode: (mobile_number: string, code: string): Promise<AxiosResponse<MessageResponse>> =>
+    backendAPI.post(BACKEND_ENDPOINTS.VERIFICATION.VERIFY_MOBILE_CODE, { mobile_number, code }),
 };
 
 // Stripe API
@@ -291,6 +310,9 @@ export const merchantAPI = {
     
   getPaymentRequests: (): Promise<AxiosResponse<any[]>> =>
     backendAPI.get(BACKEND_ENDPOINTS.MERCHANT.PAYMENT_REQUESTS),
+  
+  cancelPaymentRequest: (requestId: string): Promise<AxiosResponse<{ message: string }>> =>
+    backendAPI.post(`/payment-requests/${requestId}/cancel`),
 };
 
 // // Face Recognition API
@@ -314,6 +336,7 @@ export const healthAPI = {
 
 export default {
   auth: authAPI,
+  verification: verificationAPI,
   stripe: stripeAPI,
   merchant: merchantAPI,
   face: faceRecognitionAPI,

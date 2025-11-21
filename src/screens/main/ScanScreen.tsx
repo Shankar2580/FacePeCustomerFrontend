@@ -17,6 +17,7 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { sharedHeaderStyles } from '@/constants/layout';
+import apiService from '@/services/api/apiService';
 
 // Loading states enum for better state management
 enum LoadingState {
@@ -99,24 +100,42 @@ export default function ScanScreen() {
     setLoadingMessage('');
   };
 
-  const handleCancelTransaction = () => {
-    // TODO: Call API to cancel the payment request
+  const handleCancelTransaction = async () => {
+    if (!paymentRequestId) {
+      resetForm();
+      return;
+    }
 
-    showAlert(
-      'Transaction Cancelled',
-      'The payment request has been cancelled.',
-      [{ text: 'OK', onPress: resetForm }],
-      'info'
-    );
+    try {
+      // Call API to cancel the payment request on the backend
+      await apiService.merchant.cancelPaymentRequest(paymentRequestId);
+      
+      showAlert(
+        'Transaction Cancelled',
+        'The payment request has been cancelled successfully.',
+        [{ text: 'OK', onPress: resetForm }],
+        'success'
+      );
+    } catch (error: any) {
+      // Even if API call fails, still reset the form locally
+      const errorMessage = error.response?.data?.detail || 'Failed to cancel payment request on server, but cleared locally.';
+      showAlert(
+        'Cancellation Error',
+        errorMessage,
+        [{ text: 'OK', onPress: resetForm }],
+        'warning'
+      );
+    }
   };
 
   const handlePaymentSuccess = (payment: any) => {
-
+    // Close the waiting screen first
     setLoadingState(LoadingState.PAYMENT_SUCCESS);
     setLoadingMessage('Payment completed!');
     
-    // Show success alert
+    // Show success alert after a brief delay
     setTimeout(() => {
+      setLoadingState(LoadingState.IDLE); // Close success overlay
       const amountValue = parseFloat(amount || '0');
       showAlert(
         'Payment Successful',
@@ -128,14 +147,20 @@ export default function ScanScreen() {
   };
 
   const handlePaymentFailure = (payment: any) => {
+    // Close the waiting screen first
+    setLoadingState(LoadingState.IDLE);
 
     const statusText = payment.status === 'DECLINED' ? 'declined' : 'failed';
-    showAlert(
-      'Payment Not Completed',
-      `The customer has ${statusText} the payment request.`,
-      [{ text: 'OK', onPress: () => resetForm() }],
-      'error'
-    );
+    
+    // Show alert after a brief delay to allow screen transition
+    setTimeout(() => {
+      showAlert(
+        'Payment Not Completed',
+        `The customer has ${statusText} the payment request.`,
+        [{ text: 'OK', onPress: () => resetForm() }],
+        'error'
+      );
+    }, 100);
   };
 
 

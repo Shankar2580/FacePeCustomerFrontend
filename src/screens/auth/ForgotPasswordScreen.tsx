@@ -21,6 +21,8 @@ export default function ForgotPasswordScreen() {
   const [step, setStep] = useState<'mobile' | 'verify'>('mobile');
   const [mobileNumber, setMobileNumber] = useState('');
   const [verificationCode, setVerificationCode] = useState('');
+  const [emailVerificationCode, setEmailVerificationCode] = useState('');
+  const [merchantEmail, setMerchantEmail] = useState(''); // Store email from backend
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -89,12 +91,31 @@ export default function ForgotPasswordScreen() {
       const cleanNumber = mobileNumber.replace(/\D/g, '');
       const e164Number = `+1${cleanNumber}`;
       
-      await authAPI.forgotPassword({ mobile_number: e164Number });
+      // Step 1: Validate merchant exists and get email
+      const response = await authAPI.forgotPassword({ mobile_number: e164Number });
+      const email = response.data?.email || response.email;
+      
+      if (!email) {
+        throw new Error('Email not found for this merchant');
+      }
+      
+      setMerchantEmail(email);
+      
+      // Step 2: Send mobile verification code
+      await import('@/services/api/apiService').then(({ verificationAPI }) => 
+        verificationAPI.sendMobileCode(e164Number)
+      );
+      
+      // Step 3: Send email verification code
+      await import('@/services/api/apiService').then(({ verificationAPI }) => 
+        verificationAPI.sendEmailCode(email)
+      );
+      
       setStep('verify');
       setCountdown(60);
-      showAlert('Success', 'Verification code sent to your mobile number', [{ text: 'OK' }], 'success');
+      showAlert('Success', 'Verification codes sent to your mobile and email', [{ text: 'OK' }], 'success');
     } catch (error: any) {
-      showAlert('Error', error.response?.data?.detail || 'Failed to send verification code', [{ text: 'OK' }], 'error');
+      showAlert('Error', error.response?.data?.detail || error.message || 'Failed to send verification codes', [{ text: 'OK' }], 'error');
     } finally {
       setIsLoading(false);
     }
@@ -102,7 +123,12 @@ export default function ForgotPasswordScreen() {
 
   const handleVerifyAndReset = async () => {
     if (!verificationCode.trim()) {
-      showAlert('Validation Error', 'Please enter the verification code', [{ text: 'OK' }], 'warning');
+      showAlert('Validation Error', 'Please enter the mobile verification code', [{ text: 'OK' }], 'warning');
+      return;
+    }
+    
+    if (!emailVerificationCode.trim()) {
+      showAlert('Validation Error', 'Please enter the email verification code', [{ text: 'OK' }], 'warning');
       return;
     }
     
@@ -131,6 +157,7 @@ export default function ForgotPasswordScreen() {
       await authAPI.resetPassword({
         mobile_number: e164Number,
         verification_code: verificationCode,
+        email_verification_code: emailVerificationCode,
         new_password: newPassword,
       });
       
@@ -156,11 +183,19 @@ export default function ForgotPasswordScreen() {
       const cleanNumber = mobileNumber.replace(/\D/g, '');
       const e164Number = `+1${cleanNumber}`;
       
-      await authAPI.forgotPassword({ mobile_number: e164Number });
+      // Resend both verification codes
+      await import('@/services/api/apiService').then(({ verificationAPI }) => 
+        verificationAPI.sendMobileCode(e164Number)
+      );
+      
+      await import('@/services/api/apiService').then(({ verificationAPI }) => 
+        verificationAPI.sendEmailCode(merchantEmail)
+      );
+      
       setCountdown(60);
-      showAlert('Success', 'Verification code sent again', [{ text: 'OK' }], 'success');
+      showAlert('Success', 'Verification codes sent again', [{ text: 'OK' }], 'success');
     } catch (error: any) {
-      showAlert('Error', error.response?.data?.detail || 'Failed to resend code', [{ text: 'OK' }], 'error');
+      showAlert('Error', error.response?.data?.detail || 'Failed to resend codes', [{ text: 'OK' }], 'error');
     } finally {
       setIsLoading(false);
     }
@@ -238,21 +273,38 @@ export default function ForgotPasswordScreen() {
         
         <Text style={styles.title}>Reset Password</Text>
         <Text style={styles.subtitle}>
-          Enter the code sent to {mobileNumber}
+          Enter the codes sent to your mobile and email
         </Text>
       </View>
 
       <View style={styles.form}>
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Verification Code</Text>
+          <Text style={styles.label}>Mobile Verification Code</Text>
           <View style={styles.inputContainer}>
-            <Ionicons name="keypad" size={20} color={Colors.text.light} style={styles.inputIcon} />
+            <Ionicons name="phone-portrait" size={20} color={Colors.text.light} style={styles.inputIcon} />
             <TextInput
               style={styles.input}
-              placeholder="Enter 6-digit code"
+              placeholder="Enter SMS code"
               placeholderTextColor={Colors.text.light}
               value={verificationCode}
               onChangeText={setVerificationCode}
+              keyboardType="number-pad"
+              maxLength={6}
+              autoCapitalize="none"
+            />
+          </View>
+        </View>
+
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Email Verification Code</Text>
+          <View style={styles.inputContainer}>
+            <Ionicons name="mail" size={20} color={Colors.text.light} style={styles.inputIcon} />
+            <TextInput
+              style={styles.input}
+              placeholder="Enter email code"
+              placeholderTextColor={Colors.text.light}
+              value={emailVerificationCode}
+              onChangeText={setEmailVerificationCode}
               keyboardType="number-pad"
               maxLength={6}
               autoCapitalize="none"
@@ -317,9 +369,9 @@ export default function ForgotPasswordScreen() {
 
         <View style={styles.buttonSection}>
           <TouchableOpacity
-            style={[styles.primaryButton, (verificationCode.trim() && newPassword.trim() && confirmPassword.trim()) && styles.primaryButtonActive]}
+            style={[styles.primaryButton, (verificationCode.trim() && emailVerificationCode.trim() && newPassword.trim() && confirmPassword.trim()) && styles.primaryButtonActive]}
             onPress={handleVerifyAndReset}
-            disabled={!verificationCode.trim() || !newPassword.trim() || !confirmPassword.trim() || isLoading}
+            disabled={!verificationCode.trim() || !emailVerificationCode.trim() || !newPassword.trim() || !confirmPassword.trim() || isLoading}
           >
             <Text style={styles.primaryButtonText}>
               {isLoading ? 'Resetting Password...' : 'Reset Password'}

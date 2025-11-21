@@ -15,6 +15,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
 import Colors from '@/constants/colors';
 import { useStyledAlert } from '@/components/ui/StyledAlert';
+import { API_CONFIG, BACKEND_ENDPOINTS } from '@/constants/api';
 
 export default function RegisterScreen() {
   const { phoneNumber } = useLocalSearchParams<{ phoneNumber: string }>();
@@ -29,11 +30,106 @@ export default function RegisterScreen() {
     confirmPassword: '',
   });
 
+  const [emailVerificationCode, setEmailVerificationCode] = useState('');
+  const [mobileVerificationCode, setMobileVerificationCode] = useState('');
+  const [emailCodeSent, setEmailCodeSent] = useState(false);
+  const [mobileCodeSent, setMobileCodeSent] = useState(false);
+  const [emailCountdown, setEmailCountdown] = useState(0);
+  const [mobileCountdown, setMobileCountdown] = useState(0);
+
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  // Email countdown timer
+  const startEmailCountdown = () => {
+    setEmailCountdown(60);
+    const timer = setInterval(() => {
+      setEmailCountdown((prev: number) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
+  // Mobile countdown timer
+  const startMobileCountdown = () => {
+    setMobileCountdown(60);
+    const timer = setInterval(() => {
+      setMobileCountdown((prev: number) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
+  // Send email verification code
+  const handleSendEmailCode = async () => {
+    if (!formData.email) {
+      showAlert('Error', 'Please enter your email address', [{ text: 'OK' }], 'warning');
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(formData.email)) {
+      showAlert('Error', 'Please enter a valid email address', [{ text: 'OK' }], 'warning');
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_CONFIG.BACKEND_URL}${BACKEND_ENDPOINTS.VERIFICATION.SEND_EMAIL_CODE}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: formData.email }),
+      });
+
+      if (response.ok) {
+        setEmailCodeSent(true);
+        startEmailCountdown();
+        showAlert('Success', 'Verification code sent to your email', [{ text: 'OK' }], 'success');
+      } else {
+        const errorData = await response.json();
+        showAlert('Error', errorData.detail || 'Failed to send email verification code', [{ text: 'OK' }], 'error');
+      }
+    } catch (error) {
+      showAlert('Error', 'Failed to send verification code. Please try again.', [{ text: 'OK' }], 'error');
+    }
+  };
+
+  // Send mobile verification code
+  const handleSendMobileCode = async () => {
+    if (!phoneNumber) {
+      showAlert('Error', 'Phone number is required', [{ text: 'OK' }], 'warning');
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_CONFIG.BACKEND_URL}${BACKEND_ENDPOINTS.VERIFICATION.SEND_MOBILE_CODE}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mobile_number: phoneNumber }),
+      });
+
+      if (response.ok) {
+        setMobileCodeSent(true);
+        startMobileCountdown();
+        showAlert('Success', 'Verification code sent to your mobile', [{ text: 'OK' }], 'success');
+      } else {
+        const errorData = await response.json();
+        showAlert('Error', errorData.detail || 'Failed to send mobile verification code', [{ text: 'OK' }], 'error');
+      }
+    } catch (error) {
+      showAlert('Error', 'Failed to send verification code. Please try again.', [{ text: 'OK' }], 'error');
+    }
   };
 
   const validatePassword = (password: string) => {
@@ -116,12 +212,25 @@ export default function RegisterScreen() {
   const handleRegister = async () => {
     if (!validateForm()) return;
 
+    // Validate verification codes
+    if (!emailVerificationCode || emailVerificationCode.length < 4) {
+      showAlert('Validation Error', 'Please enter the email verification code', [{ text: 'OK' }], 'warning');
+      return;
+    }
+
+    if (!mobileVerificationCode || mobileVerificationCode.length < 4) {
+      showAlert('Validation Error', 'Please enter the mobile verification code', [{ text: 'OK' }], 'warning');
+      return;
+    }
+
     try {
       const registrationSuccess = await register({
         email: formData.email,
         password: formData.password,
         business_name: formData.businessName,
         mobile_number: phoneNumber || '',
+        email_verification_code: emailVerificationCode,
+        mobile_verification_code: mobileVerificationCode,
       });
 
       if (registrationSuccess) {
@@ -227,6 +336,36 @@ export default function RegisterScreen() {
                   autoCapitalize="none"
                 />
               </View>
+              
+              {/* Send Email Code Button */}
+              <TouchableOpacity
+                style={[styles.sendCodeButton, (!formData.email || emailCountdown > 0) && styles.sendCodeButtonDisabled]}
+                onPress={handleSendEmailCode}
+                disabled={!formData.email || emailCountdown > 0}
+              >
+                <Text style={styles.sendCodeButtonText}>
+                  {emailCodeSent 
+                    ? (emailCountdown > 0 ? `Resend in ${emailCountdown}s` : 'Resend Email Code')
+                    : 'Send Email Code'
+                  }
+                </Text>
+              </TouchableOpacity>
+              
+              {/* Email Verification Code Input */}
+              {emailCodeSent && (
+                <View style={[styles.inputContainer, { marginTop: 12 }]}>
+                  <Ionicons name="shield-checkmark" size={20} color={Colors.text.light} style={styles.inputIcon} />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Enter email verification code"
+                    placeholderTextColor={Colors.text.light}
+                    value={emailVerificationCode}
+                    onChangeText={setEmailVerificationCode}
+                    keyboardType="number-pad"
+                    maxLength={6}
+                  />
+                </View>
+              )}
             </View>
 
             {/* Password */}
@@ -294,6 +433,36 @@ export default function RegisterScreen() {
                 <Text style={styles.disabledText}>{phoneNumber}</Text>
                 <Ionicons name="checkmark-circle" size={20} color={Colors.success} />
               </View>
+              
+              {/* Send Mobile Code Button */}
+              <TouchableOpacity
+                style={[styles.sendCodeButton, mobileCountdown > 0 && styles.sendCodeButtonDisabled]}
+                onPress={handleSendMobileCode}
+                disabled={mobileCountdown > 0}
+              >
+                <Text style={styles.sendCodeButtonText}>
+                  {mobileCodeSent 
+                    ? (mobileCountdown > 0 ? `Resend in ${mobileCountdown}s` : 'Resend Mobile Code')
+                    : 'Send Mobile Code'
+                  }
+                </Text>
+              </TouchableOpacity>
+              
+              {/* Mobile Verification Code Input */}
+              {mobileCodeSent && (
+                <View style={[styles.inputContainer, { marginTop: 12 }]}>
+                  <Ionicons name="shield-checkmark" size={20} color={Colors.text.light} style={styles.inputIcon} />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Enter mobile verification code"
+                    placeholderTextColor={Colors.text.light}
+                    value={mobileVerificationCode}
+                    onChangeText={setMobileVerificationCode}
+                    keyboardType="number-pad"
+                    maxLength={6}
+                  />
+                </View>
+              )}
             </View>
           </View>
 
@@ -445,5 +614,22 @@ const styles = StyleSheet.create({
     color: Colors.text.light,
     marginTop: 4,
     paddingHorizontal: 2,
+  },
+  sendCodeButton: {
+    marginTop: 12,
+    backgroundColor: Colors.primary,
+    borderRadius: 8,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sendCodeButtonDisabled: {
+    backgroundColor: Colors.border.medium,
+    opacity: 0.6,
+  },
+  sendCodeButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.text.white,
   },
 }); 

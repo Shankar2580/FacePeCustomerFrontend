@@ -1,19 +1,26 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
+  Modal,
+  Dimensions,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
+import { CameraView, useCameraPermissions } from 'expo-camera';
+import * as ImageManipulator from 'expo-image-manipulator';
 import Colors from '@/constants/colors';
 import { ERROR_MESSAGES, SUCCESS_MESSAGES } from '@/constants/api';
 import apiService, { FaceVerificationResponse, PinVerificationRequest } from '@/services/api/apiService';
 import PinVerificationModal from '../modals/PinVerificationModal';
 import { useStyledAlert } from '@/components/ui/StyledAlert';
+
+const { width, height } = Dimensions.get('window');
 
 interface FaceVerificationComponentProps {
   onVerificationSuccess: (userId: string, faceScanId: string, paymentAlreadyProcessed?: boolean, requestId?: string) => void;
@@ -45,6 +52,9 @@ export default function FaceVerificationComponent({
   onLoadingStateChange,
 }: FaceVerificationComponentProps) {
   const { showAlert, AlertComponent } = useStyledAlert();
+  const [permission, requestPermission] = useCameraPermissions();
+  const cameraRef = useRef<CameraView | null>(null);
+  const [showCamera, setShowCamera] = useState(false);
   const [state, setState] = useState<VerificationState>({
     loading: false,
     showPinModal: false,
@@ -94,22 +104,81 @@ export default function FaceVerificationComponent({
     }
   }, [onLoadingStateChange]);
 
+  const takeSquarePicture = async () => {
+    if (!cameraRef.current) return null;
+
+    try {
+      // 1. Capture the full-resolution photo
+      const photo = await cameraRef.current.takePictureAsync({
+        skipProcessing: Platform.OS === 'ios',
+        quality: 0.8,
+      });
+
+      const photoWidth = photo.width ?? 0;
+      const photoHeight = photo.height ?? 0;
+
+      if (!photoWidth || !photoHeight) {
+        throw new Error('Unable to determine captured image dimensions.');
+      }
+
+      // 2. Compute a centered square crop and clamp to image bounds
+      const targetSize = Math.min(photoWidth, photoHeight);
+      const cropWidth = Math.floor(targetSize);
+      const cropHeight = Math.floor(targetSize);
+      const originX = Math.max(0, Math.floor((photoWidth - cropWidth) / 2));
+      const originY = Math.max(0, Math.floor((photoHeight - cropHeight) / 2));
+      const availableWidth = Math.max(0, photoWidth - originX);
+      const availableHeight = Math.max(0, photoHeight - originY);
+      const crop = {
+        originX,
+        originY,
+        width: Math.min(cropWidth, availableWidth),
+        height: Math.min(cropHeight, availableHeight),
+      };
+
+      if (crop.width <= 0 || crop.height <= 0) {
+        throw new Error('Calculated crop dimensions are invalid for the captured image.');
+      }
+
+      // 3. Crop to square and resize to optimal size for face recognition
+      const square = await ImageManipulator.manipulateAsync(
+        photo.uri,
+        [
+          { crop },
+          { resize: { width: 640, height: 640 } },
+        ],
+        {
+          compress: 0.9,
+          format: ImageManipulator.SaveFormat.JPEG,
+        }
+      );
+
+      return square.uri;
+    } catch (error) {
+      throw error;
+    }
+  };
+
   const handleImageCapture = async () => {
     if (disabled || state.loading) return;
 
-    try {
-      const permission = await ImagePicker.requestCameraPermissionsAsync();
-      if (!permission.granted) {
+    // Check camera permissions
+    if (!permission) {
+      return;
+    }
+
+    if (!permission.granted) {
+      const permissionResult = await requestPermission();
+      if (!permissionResult.granted) {
         showAlert(
           'Camera Access Required',
-          'FP Merchant needs camera permission to scan customer faces for payment verification. This ensures secure and accurate identity confirmation.',
+          'FP Merchant needs camera permission to scan customer faces for payment verification.',
           [
             { text: 'Deny', style: 'cancel' },
             { 
               text: 'Allow', 
               onPress: async () => {
-                // Request permission again
-                const retryPermission = await ImagePicker.requestCameraPermissionsAsync();
+                const retryPermission = await requestPermission();
                 if (retryPermission.granted) {
                   handleImageCapture();
                 }
@@ -120,22 +189,29 @@ export default function FaceVerificationComponent({
         );
         return;
       }
+    }
 
-      const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ['images'],
-        allowsEditing: false,
-        quality: 0.8,
-        cameraType: ImagePicker.CameraType.back,
-      });
+    // Open custom camera modal
+    setShowCamera(true);
+  };
 
-      if (!result.canceled && result.assets && result.assets[0]) {
-        await processFaceImage(result.assets[0].uri);
+  const handleTakePhoto = async () => {
+    if (!cameraRef.current) return;
+
+    updateState({ loading: true });
+    try {
+      const imageUri = await takeSquarePicture();
+      if (imageUri) {
+        setShowCamera(false);
+        await processFaceImage(imageUri);
       }
-      // If cancelled, just return - no loading state to reset
     } catch (error) {
       const errorMessage = 'Failed to capture image. Please try again.';
-      updateState({ error: errorMessage });
-      onVerificationError(errorMessage);
+      updateState({ error: errorMessage, loading: false });
+      // Defer parent state update to avoid React warning
+      setTimeout(() => {
+        onVerificationError(errorMessage);
+      }, 0);
     }
   };
 
@@ -183,7 +259,10 @@ export default function FaceVerificationComponent({
       }
       const errorMessage = 'Invalid response from verification service. Please try again.';
       updateState({ error: errorMessage });
-      onVerificationError(errorMessage);
+      // Defer parent state update to avoid React warning
+      setTimeout(() => {
+        onVerificationError(errorMessage);
+      }, 0);
       return;
     }
 
@@ -335,14 +414,20 @@ export default function FaceVerificationComponent({
         'error'
       );
 
-      onVerificationError(errorMessage);
+      // Defer parent state update to avoid React warning
+      setTimeout(() => {
+        onVerificationError(errorMessage);
+      }, 0);
       return;
     }
 
     // Fallback for unexpected response
     const errorMessage = 'Unexpected response from verification service. Please try again.';
     updateState({ error: errorMessage });
-    onVerificationError(errorMessage);
+    // Defer parent state update to avoid React warning
+    setTimeout(() => {
+      onVerificationError(errorMessage);
+    }, 0);
   };
 
   const handleFaceVerificationError = async (error: any) => {
@@ -365,7 +450,10 @@ export default function FaceVerificationComponent({
       'error'
     );
     
-    onVerificationError(errorMessage);
+    // Defer parent state update to avoid React warning
+    setTimeout(() => {
+      onVerificationError(errorMessage);
+    }, 0);
   };
 
   const handlePinVerification = async (pin: string): Promise<boolean> => {
@@ -440,7 +528,10 @@ export default function FaceVerificationComponent({
 
   const handlePinModalCancel = () => {
     updateState({ showPinModal: false });
-    onVerificationError('PIN verification cancelled by user');
+    // Defer parent state update to avoid React warning
+    setTimeout(() => {
+      onVerificationError('PIN verification cancelled by user');
+    }, 0);
   };
 
   return (
@@ -531,6 +622,86 @@ export default function FaceVerificationComponent({
         loading={state.pinVerificationLoading}
         message="Multiple similar faces detected. Please enter your PIN to confirm your identity."
       />
+
+      {/* Camera Modal - Custom UI like FacePe */}
+      <Modal
+        visible={showCamera}
+        animationType="slide"
+        presentationStyle="fullScreen"
+      >
+        <View style={styles.cameraModalContainer}>
+          {/* Header */}
+          <LinearGradient
+            colors={Colors.gradients.header}
+            style={styles.cameraHeader}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          >
+            <TouchableOpacity
+              style={styles.cameraBackButton}
+              onPress={() => setShowCamera(false)}
+            >
+              <Ionicons name="close" size={24} color="#FFFFFF" />
+            </TouchableOpacity>
+            <View style={styles.cameraHeaderContent}>
+              <Text style={styles.cameraHeaderTitle}>Scan Customer Face</Text>
+            </View>
+            <View style={styles.cameraHeaderRight} />
+          </LinearGradient>
+
+          {/* Camera Preview with Blue Box and Oval Frame */}
+          <View style={styles.cameraContainer}>
+            <View style={styles.blueBoxContainer}>
+              {/* Top Blue Section */}
+              <View style={styles.topBlueBar} />
+              
+              {/* Middle Row with Oval */}
+              <View style={styles.middleRow}>
+                {/* Left Blue Bar */}
+                <View style={styles.sideBlueBar} />
+                
+                {/* Oval Container with Camera */}
+                <View style={styles.ovalCameraContainer}>
+                  <CameraView
+                    ref={cameraRef}
+                    style={styles.cameraViewOval}
+                    facing="front"
+                  />
+                  
+                  {/* Circle Frame Border */}
+                  <View style={styles.circleFrameBorder} />
+                </View>
+                
+                {/* Right Blue Bar */}
+                <View style={styles.sideBlueBar} />
+              </View>
+              
+              {/* Bottom Blue Section */}
+              <View style={styles.bottomBlueBar} />
+            </View>
+          </View>
+
+          {/* Take Photo Button */}
+          <View style={styles.buttonContainer}>
+            <TouchableOpacity
+              style={styles.takePhotoButton}
+              onPress={handleTakePhoto}
+              disabled={state.loading}
+            >
+              <LinearGradient
+                colors={Colors.gradients.primary}
+                style={styles.takePhotoButtonGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              >
+                <Text style={styles.takePhotoButtonText}>
+                  {state.loading ? 'Processing...' : 'Capture Face'}
+                </Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
       
       {/* Styled Alert Component */}
       <AlertComponent />
@@ -632,5 +803,133 @@ const styles = StyleSheet.create({
     color: Colors.text.secondary,
     flex: 1,
     lineHeight: 16,
+  },
+  // Camera Modal Styles
+  cameraModalContainer: {
+    flex: 1,
+    backgroundColor: '#F8F7FF',
+  },
+  cameraHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+    paddingBottom: 16,
+    minHeight: 80,
+    borderBottomLeftRadius: 4,
+    borderBottomRightRadius: 4,
+    marginBottom: 24,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  cameraBackButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cameraHeaderContent: {
+    flex: 1,
+  },
+  cameraHeaderTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    textAlign: 'center',
+  },
+  cameraHeaderRight: {
+    width: 44,
+  },
+  cameraContainer: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 30,
+    paddingVertical: 50,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  blueBoxContainer: {
+    width: '100%',
+    flex: 1,
+    maxHeight: 600,
+    borderRadius: 24,
+    overflow: 'hidden',
+    backgroundColor: '#3B82F6',
+  },
+  topBlueBar: {
+    height: 70,
+    backgroundColor: '#3B82F6',
+    width: '100%',
+  },
+  middleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sideBlueBar: {
+    width: 40,
+    height: 400,
+    backgroundColor: '#3B82F6',
+  },
+  ovalCameraContainer: {
+    width: 280,
+    height: 400,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'transparent',
+  },
+  cameraViewOval: {
+    position: 'absolute',
+    width: 280,
+    height: 280,
+    overflow: 'hidden',
+    borderRadius: 140,
+  },
+  circleFrameBorder: {
+    position: 'absolute',
+    width: 280,
+    height: 280,
+    borderWidth: 4,
+    borderColor: '#FFFFFF',
+    backgroundColor: 'transparent',
+    borderRadius: 140,
+  },
+  bottomBlueBar: {
+    height: 70,
+    backgroundColor: '#3B82F6',
+    width: '100%',
+  },
+  buttonContainer: {
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 24,
+    paddingVertical: 20,
+  },
+  takePhotoButton: {
+    borderRadius: 16,
+    shadowColor: '#6B46C1',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 12,
+  },
+  takePhotoButtonGradient: {
+    paddingVertical: 20,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+    borderRadius: 16,
+  },
+  takePhotoButtonText: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: 'bold',
   },
 }); 

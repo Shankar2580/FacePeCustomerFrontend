@@ -25,7 +25,7 @@ interface Transaction {
   description?: string;
 }
 
-type FilterType = 'all' | 'completed' | 'pending' | 'failed';
+type FilterType = 'all' | 'completed' | 'pending' | 'failed' | 'expired';
 
 export default function HistoryScreen() {
   const { user } = useAuth();
@@ -127,6 +127,8 @@ export default function HistoryScreen() {
         return Colors.warning;
       case 'failed':
         return Colors.error;
+      case 'expired':
+        return '#9CA3AF';
       default:
         return Colors.text.secondary;
     }
@@ -140,6 +142,8 @@ export default function HistoryScreen() {
         return Colors.status.pending;
       case 'failed':
         return Colors.status.failed;
+      case 'expired':
+        return '#F3F4F6';
       default:
         return Colors.background.overlay;
     }
@@ -153,6 +157,8 @@ export default function HistoryScreen() {
         return 'time';
       case 'failed':
         return 'close-circle';
+      case 'expired':
+        return 'time-outline';
       default:
         return 'help-circle';
     }
@@ -163,6 +169,7 @@ export default function HistoryScreen() {
     { key: 'completed', label: 'Completed' },
     { key: 'pending', label: 'Pending' },
     { key: 'failed', label: 'Failed' },
+    { key: 'expired', label: 'Expired' },
   ];
 
   if (loading) {

@@ -15,6 +15,7 @@ import apiService, { PaymentRequest } from '@/services/api/apiService';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useStyledAlert } from '@/components/ui/StyledAlert';
+import { getTimeRemaining, formatCountdown } from '@/utils/timeUtils';
 
 interface PaymentWaitingScreenProps {
   visible: boolean;
@@ -38,6 +39,8 @@ export default function PaymentWaitingScreen({
   const [dots, setDots] = useState('');
   const [elapsed, setElapsed] = useState(0);
   const [isPolling, setIsPolling] = useState(true);
+  const [timeRemaining, setTimeRemaining] = useState<{ minutes: number; seconds: number; expired: boolean }>({ minutes: 5, seconds: 0, expired: false });
+  const [expiresAt, setExpiresAt] = useState<string | null>(null);
   const pulseAnim = new Animated.Value(1);
   const { showAlert, AlertComponent } = useStyledAlert();
 
@@ -46,6 +49,10 @@ export default function PaymentWaitingScreen({
     if (visible) {
       setElapsed(0);
       setIsPolling(true);
+      // Calculate default expiry time (5 minutes from now) to prevent timer stuck at 5:00
+      const defaultExpiry = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+      setExpiresAt(defaultExpiry);
+      setTimeRemaining({ minutes: 5, seconds: 0, expired: false });
     }
   }, [visible]);
 
@@ -93,12 +100,17 @@ export default function PaymentWaitingScreen({
           return;
         }
 
-// Check status
+        // Update expiry time from backend if available
+        if (currentRequest.expires_at) {
+          setExpiresAt(currentRequest.expires_at);
+        }
+
+        // Check status - including CANCELLED/FAILED states
         if (currentRequest.status === 'COMPLETED') {
           setIsPolling(false);
           clearInterval(pollInterval);
           onPaymentSuccess(currentRequest);
-        } else if (currentRequest.status === 'FAILED' || currentRequest.status === 'DECLINED') {
+        } else if (currentRequest.status === 'FAILED' || currentRequest.status === 'DECLINED' || currentRequest.status === 'CANCELLED') {
           setIsPolling(false);
           clearInterval(pollInterval);
           onPaymentFailure(currentRequest);
@@ -114,24 +126,31 @@ export default function PaymentWaitingScreen({
     return () => {
       clearInterval(pollInterval);
     };
-  }, [visible, paymentRequestId, isPolling, onPaymentSuccess, onPaymentFailure]);
+  }, [visible, paymentRequestId, isPolling, onPaymentSuccess, onPaymentFailure, expiresAt]);
 
-  // Timeout after 5 minutes
+  // Update countdown timer
   useEffect(() => {
-    if (!visible || !isPolling) return;
+    if (!visible || !expiresAt) return;
 
-    const timeout = setTimeout(() => {
-      setIsPolling(false);
-      showAlert(
-        'Request Timed Out',
-        'The payment request has timed out. Please try again.',
-        [{ text: 'OK', onPress: onCancel }],
-        'warning'
-      );
-    }, 5 * 60 * 1000); // 5 minutes
+    const interval = setInterval(() => {
+      const remaining = getTimeRemaining(expiresAt);
+      setTimeRemaining(remaining);
 
-    return () => clearTimeout(timeout);
-  }, [visible, isPolling, onCancel]);
+      // Check if expired
+      if (remaining.expired) {
+        setIsPolling(false);
+        clearInterval(interval);
+        showAlert(
+          'Request Expired',
+          'The payment request has expired. Please try again.',
+          [{ text: 'OK', onPress: onCancel }],
+          'warning'
+        );
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [visible, expiresAt, onCancel]);
 
   // Pulse animation for waiting indicator
   useEffect(() => {
@@ -202,9 +221,12 @@ export default function PaymentWaitingScreen({
           <Text style={styles.subtitle}>
             Waiting for customer response{dots}
           </Text>
-          <Text style={styles.elapsedTime}>
-            {Math.floor(elapsed / 60)}:{(elapsed % 60).toString().padStart(2, '0')}
-          </Text>
+          <View style={styles.timerContainer}>
+            <Text style={styles.timerLabel}>Time Remaining:</Text>
+            <Text style={[styles.timerValue, timeRemaining.minutes < 1 && styles.timerCritical]}>
+              {formatCountdown(timeRemaining.minutes, timeRemaining.seconds)}
+            </Text>
+          </View>
         </View>
 
         {/* Amount Display */}
@@ -323,6 +345,33 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     opacity: 0.9,
     minHeight: 24, // Prevent layout shift from dots
+  },
+  timerContainer: {
+    alignItems: 'center',
+    marginTop: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
+  },
+  timerLabel: {
+    fontSize: 12,
+    color: Colors.text.white,
+    opacity: 0.8,
+    marginBottom: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  timerValue: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: Colors.text.white,
+    fontVariant: ['tabular-nums'],
+  },
+  timerCritical: {
+    color: '#EF4444',
   },
   elapsedTime: {
     fontSize: 18,

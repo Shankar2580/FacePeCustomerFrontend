@@ -29,4 +29,5 @@ export interface PaymentRequest {
   stripe_payment_intent_id?: string;
   created_at: string;
   updated_at: string;
+  expires_at: string;
 }

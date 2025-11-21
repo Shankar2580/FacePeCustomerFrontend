@@ -32,6 +32,14 @@ export const BACKEND_ENDPOINTS = {
     RESET_PASSWORD: '/auth/reset-password',
   },
   
+  // Verification
+  VERIFICATION: {
+    SEND_EMAIL_CODE: '/verification/send-email-code',
+    VERIFY_EMAIL_CODE: '/verification/verify-email-code',
+    SEND_MOBILE_CODE: '/verification/send-mobile-code',
+    VERIFY_MOBILE_CODE: '/verification/verify-mobile-code',
+  },
+  
   // Stripe Onboarding
   STRIPE: {
     ONBOARD: '/auth/onboard-stripe',
