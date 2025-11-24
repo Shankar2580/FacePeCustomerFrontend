@@ -126,7 +126,7 @@ export default function PaymentWaitingScreen({
     return () => {
       clearInterval(pollInterval);
     };
-  }, [visible, paymentRequestId, isPolling, onPaymentSuccess, onPaymentFailure, expiresAt]);
+  }, [visible, paymentRequestId, isPolling, onPaymentSuccess, onPaymentFailure]);
 
   // Update countdown timer
   useEffect(() => {

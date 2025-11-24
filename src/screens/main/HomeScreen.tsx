@@ -652,6 +652,7 @@ const styles = StyleSheet.create({
   summaryGrid: {
     flexDirection: 'row',
     gap: 16,
+    alignItems: 'stretch',
   },
   summaryCard: {
     flex: 1,
@@ -662,11 +663,12 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
     shadowRadius: 12,
+    minHeight: 160,
   },
   summaryCardGradient: {
+    flex: 1,
     padding: 24,
     alignItems: 'center',
-    minHeight: 140,
     justifyContent: 'center',
   },
   summaryAmount: {
@@ -675,6 +677,8 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     marginTop: 12,
     marginBottom: 8,
+    textAlign: 'center',
+    flexWrap: 'wrap',
   },
   summaryLabel: {
     fontSize: 14,
