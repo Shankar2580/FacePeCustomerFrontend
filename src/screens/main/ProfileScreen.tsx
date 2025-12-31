@@ -6,6 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
   RefreshControl,
+  Platform,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -63,9 +64,9 @@ export default function ProfileScreen() {
       'Are you sure you want to logout?',
       [
         { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Logout', 
-          style: 'destructive', 
+        {
+          text: 'Logout',
+          style: 'destructive',
           onPress: async () => {
             await logout();
             router.dismissAll();
@@ -88,25 +89,25 @@ export default function ProfileScreen() {
 
   const getAccountStatus = () => {
     if (!profile) return { text: 'Unknown', color: Colors.text.muted, bg: Colors.background.overlay, icon: 'help-circle' };
-    
+
     if (profile.stripe_onboarding_complete) {
-      return { 
-        text: 'Active', 
-        color: Colors.success, 
+      return {
+        text: 'Active',
+        color: Colors.success,
         bg: Colors.status.completed,
         icon: 'checkmark-circle'
       };
     } else if (profile.mobile_verified) {
-      return { 
-        text: 'Setup Required', 
-        color: Colors.warning, 
+      return {
+        text: 'Setup Required',
+        color: Colors.warning,
         bg: Colors.status.pending,
         icon: 'warning'
       };
     } else {
-      return { 
-        text: 'Verification Pending', 
-        color: Colors.error, 
+      return {
+        text: 'Verification Pending',
+        color: Colors.error,
         bg: Colors.status.failed,
         icon: 'close-circle'
       };
@@ -236,6 +237,10 @@ export default function ProfileScreen() {
 
       <ScrollView
         style={styles.content}
+        contentContainerStyle={{ paddingBottom: insets.bottom + (Platform.OS === 'ios' ? 96 : 8) }}
+        contentInset={Platform.OS === 'ios' ? { bottom: insets.bottom + 32 } : { bottom: 0 }}
+        scrollIndicatorInsets={Platform.OS === 'ios' ? { bottom: insets.bottom + 32 } : { bottom: 0 }}
+        contentInsetAdjustmentBehavior={Platform.OS === 'ios' ? 'automatic' : undefined as any}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -299,7 +304,7 @@ export default function ProfileScreen() {
                       <Text style={styles.sectionItemValue}>{item.value}</Text>
                     </View>
                   </View>
-                  
+
                   <View style={styles.sectionItemRight}>
                     {item.status && (
                       <View style={[
@@ -332,7 +337,7 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         </View>
       </ScrollView>
-      
+
       {/* Styled Alert Component */}
       <AlertComponent />
     </View>

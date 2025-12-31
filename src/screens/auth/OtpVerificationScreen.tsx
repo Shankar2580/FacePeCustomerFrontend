@@ -1,14 +1,12 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
-  TextInput,
   TouchableOpacity,
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  Dimensions,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -17,16 +15,16 @@ import { router, useLocalSearchParams } from 'expo-router';
 import Colors from '@/constants/colors';
 import apiService from '@/services/api/apiService';
 import { useStyledAlert } from '@/components/ui/StyledAlert';
+import { OTPInput } from '@/components/ui/OTPInput';
 
 export default function OTPVerificationScreen() {
   const { phoneNumber } = useLocalSearchParams<{ phoneNumber: string }>();
   const insets = useSafeAreaInsets();
   const { showAlert, AlertComponent } = useStyledAlert();
-  const [otp, setOtp] = useState(['', '', '', '', '', '']);
+  const [otp, setOtp] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [resendTimer, setResendTimer] = useState(60);
   const [canResend, setCanResend] = useState(false);
-  const inputRefs = useRef<(TextInput | null)[]>([]);
 
   useEffect(() => {
     if (resendTimer > 0) {
@@ -37,47 +35,30 @@ export default function OTPVerificationScreen() {
     }
   }, [resendTimer]);
 
-  const handleOtpChange = (value: string, index: number) => {
-    const newOtp = [...otp];
-    newOtp[index] = value;
-    setOtp(newOtp);
-
-    // Auto-focus next input
-    if (value && index < 5) {
-      inputRefs.current[index + 1]?.focus();
-    }
-  };
-
-  const handleKeyPress = (key: string, index: number) => {
-    if (key === 'Backspace' && !otp[index] && index > 0) {
-      inputRefs.current[index - 1]?.focus();
-    }
-  };
+  // OTP handling now managed by OTPInput component
 
   const handleVerifyOTP = async () => {
-    const otpCode = otp.join('');
-    if (otpCode.length !== 6) {
+    if (otp.length !== 6) {
       showAlert('Invalid OTP', 'Please enter the complete 6-digit code', [{ text: 'OK' }], 'warning');
       return;
     }
 
     setIsLoading(true);
-    
+
     try {
       await apiService.auth.verifyOTP({
         phone_number: phoneNumber || '',
-        verification_code: otpCode
+        verification_code: otp
       });
-      
-      // Navigate to registration screen with verified phone number
+
+      // Navigate to registration screen with verified phone number AND the OTP code
       router.push({
         pathname: '/(auth)/register',
-        params: { phoneNumber: phoneNumber }
+        params: { phoneNumber: phoneNumber, verifiedMobileOtp: otp }
       });
     } catch (error: any) {
       showAlert('Verification Failed', 'Invalid verification code. Please try again.', [{ text: 'OK' }], 'error');
-      setOtp(['', '', '', '', '', '']);
-      inputRefs.current[0]?.focus();
+      setOtp('');
     } finally {
       setIsLoading(false);
     }
@@ -85,9 +66,9 @@ export default function OTPVerificationScreen() {
 
   const handleResendOTP = async () => {
     if (!canResend) return;
-    
+
     setIsLoading(true);
-    
+
     try {
       await apiService.auth.sendOTP({ phone_number: phoneNumber || '' });
       setResendTimer(60);
@@ -117,95 +98,84 @@ export default function OTPVerificationScreen() {
         behavior="padding"
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 24}
       >
-        <ScrollView 
+        <ScrollView
           style={styles.content}
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
           automaticallyAdjustKeyboardInsets={true}
         >
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity 
-            style={styles.backButton}
-            onPress={() => router.back()}
-          >
-            <Ionicons name="arrow-back" size={24} color={Colors.text.primary} />
-          </TouchableOpacity>
-          
-          <LinearGradient
-            colors={Colors.gradients.primary}
-            style={styles.iconContainer}
-          >
-            <Ionicons name="chatbubble-ellipses" size={32} color={Colors.text.white} />
-          </LinearGradient>
-          
-          <Text style={styles.title}>Enter Verification Code</Text>
-          <Text style={styles.subtitle}>
-            We've sent a 6-digit code to{'\n'}
-            <Text style={styles.phoneText}>{formatPhoneNumber(phoneNumber || '')}</Text>
-          </Text>
-        </View>
-
-        {/* OTP Input */}
-        <View style={styles.otpSection}>
-          <View style={styles.otpContainer}>
-            {otp.map((digit, index) => (
-                             <TextInput
-                 key={index}
-                 ref={(ref) => { inputRefs.current[index] = ref; }}
-                 style={[
-                   styles.otpInput,
-                   digit && styles.otpInputFilled
-                 ]}
-                 value={digit}
-                 onChangeText={(value) => handleOtpChange(value, index)}
-                 onKeyPress={({ nativeEvent }) => handleKeyPress(nativeEvent.key, index)}
-                 keyboardType="number-pad"
-                 maxLength={1}
-                 textAlign="center"
-                 selectTextOnFocus
-               />
-            ))}
-          </View>
-        </View>
-
-        {/* Verify Button */}
-        <View style={styles.buttonSection}>
-          <TouchableOpacity
-            style={[styles.verifyButton, otp.join('').length === 6 && styles.verifyButtonActive]}
-            onPress={handleVerifyOTP}
-            disabled={otp.join('').length !== 6 || isLoading}
-          >
-            <LinearGradient
-              colors={otp.join('').length === 6 ? Colors.gradients.primary : ['#CBD5E1', '#94A3B8']}
-              style={styles.verifyButtonGradient}
+          {/* Header */}
+          <View style={styles.header}>
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={() => router.back()}
             >
-              <Text style={styles.verifyButtonText}>
-                {isLoading ? 'Verifying...' : 'Verify Code'}
-              </Text>
-            </LinearGradient>
-          </TouchableOpacity>
-        </View>
-
-        {/* Resend Section */}
-        <View style={styles.resendSection}>
-          <Text style={styles.resendText}>
-            Didn't receive the code?{' '}
-          </Text>
-          {canResend ? (
-            <TouchableOpacity onPress={handleResendOTP} disabled={isLoading}>
-              <Text style={styles.resendLink}>Resend Code</Text>
+              <Ionicons name="arrow-back" size={24} color={Colors.text.primary} />
             </TouchableOpacity>
-          ) : (
-            <Text style={styles.resendTimer}>
-              Resend in {resendTimer}s
+
+            <LinearGradient
+              colors={Colors.gradients.primary}
+              style={styles.iconContainer}
+            >
+              <Ionicons name="chatbubble-ellipses" size={32} color={Colors.text.white} />
+            </LinearGradient>
+
+            <Text style={styles.title}>Enter Verification Code</Text>
+            <Text style={styles.subtitle}>
+              We've sent a 6-digit code to{'\n'}
+              <Text style={styles.phoneText}>{formatPhoneNumber(phoneNumber || '')}</Text>
             </Text>
-          )}
-        </View>
+          </View>
+
+          {/* OTP Input */}
+          <View style={styles.otpSection}>
+            <OTPInput
+              code={otp}
+              setCode={setOtp}
+              variant="grouped"
+              length={6}
+              autoFocus={true}
+              onComplete={handleVerifyOTP}
+            />
+          </View>
+
+          {/* Verify Button */}
+          <View style={styles.buttonSection}>
+            <TouchableOpacity
+              style={[styles.verifyButton, otp.length === 6 && styles.verifyButtonActive]}
+              onPress={handleVerifyOTP}
+              disabled={otp.length !== 6 || isLoading}
+            >
+              <LinearGradient
+                colors={otp.length === 6 ? Colors.gradients.primary : ['#CBD5E1', '#94A3B8']}
+                style={styles.verifyButtonGradient}
+              >
+                <Text style={styles.verifyButtonText}>
+                  {isLoading ? 'Verifying...' : 'Verify Code'}
+                </Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+
+          {/* Resend Section */}
+          <View style={styles.resendSection}>
+            <Text style={styles.resendText}>
+              Didn't receive the code?{' '}
+            </Text>
+            {canResend ? (
+              <TouchableOpacity onPress={handleResendOTP} disabled={isLoading}>
+                <Text style={styles.resendLink}>Resend Code</Text>
+              </TouchableOpacity>
+            ) : (
+              <Text style={styles.resendTimer}>
+                Resend in {resendTimer}s
+              </Text>
+            )}
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
-      
+
       {/* Styled Alert Component */}
       <AlertComponent />
     </SafeAreaView>
@@ -286,31 +256,7 @@ const styles = StyleSheet.create({
     paddingTop: 40,
     marginBottom: 24,
   },
-  otpContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 8,
-    maxWidth: 360,
-    alignSelf: 'center',
-    width: '100%',
-  },
-  otpInput: {
-    flex: 1,
-    maxWidth: 50,
-    aspectRatio: 1,
-    borderWidth: 2,
-    borderColor: Colors.border.light,
-    borderRadius: 12,
-    fontSize: 20,
-    fontWeight: '600',
-    color: Colors.text.primary,
-    backgroundColor: Colors.background.card,
-  },
-  otpInputFilled: {
-    borderColor: Colors.primary,
-    backgroundColor: Colors.background.card,
-  },
+  // OTP input styles now handled by OTPInput component
   buttonSection: {
     paddingBottom: 16,
     paddingTop: 4,

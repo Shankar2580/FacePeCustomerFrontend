@@ -11,6 +11,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
 import Colors from '@/constants/colors';
+import { scale, fontScale } from '@/utils/responsive';
 
 export default function OnboardingCompleteScreen() {
   const { merchant_id } = useLocalSearchParams<{ merchant_id: string }>();
@@ -23,7 +24,7 @@ export default function OnboardingCompleteScreen() {
       try {
         // Wait a moment for Stripe webhook to process
         await new Promise(resolve => setTimeout(resolve, 2000));
-        
+
         // Refresh user profile to get updated stripe status
         await refreshUserProfile();
         setSuccess(true);
@@ -114,46 +115,46 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 32,
+    paddingHorizontal: scale(32),
   },
   iconContainer: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
+    width: scale(120),
+    height: scale(120),
+    borderRadius: scale(60),
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 32,
+    marginBottom: scale(32),
   },
   title: {
-    fontSize: 28,
+    fontSize: fontScale(28),
     fontWeight: '700',
     color: Colors.text.white,
     textAlign: 'center',
-    marginBottom: 16,
+    marginBottom: scale(16),
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: fontScale(16),
     color: Colors.text.white,
     opacity: 0.9,
     textAlign: 'center',
-    lineHeight: 24,
-    marginBottom: 48,
+    lineHeight: fontScale(24),
+    marginBottom: scale(48),
   },
   continueButton: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    paddingHorizontal: 32,
-    paddingVertical: 16,
-    borderRadius: 16,
+    paddingHorizontal: scale(32),
+    paddingVertical: scale(16),
+    borderRadius: scale(16),
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.3)',
   },
   continueButtonText: {
-    fontSize: 16,
+    fontSize: fontScale(16),
     fontWeight: '600',
     color: Colors.text.white,
-    marginRight: 8,
+    marginRight: scale(8),
   },
 }); 

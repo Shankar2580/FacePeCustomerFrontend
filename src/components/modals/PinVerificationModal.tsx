@@ -54,7 +54,7 @@ export default function PinVerificationModal({
 
   const handlePinChange = (value: string, index: number) => {
     if (value.length > 1) return; // Prevent multiple characters
-    
+
     const newPin = [...pin];
     newPin[index] = value;
     setPin(newPin);
@@ -79,7 +79,7 @@ export default function PinVerificationModal({
 
   const handleVerify = async (pinCode?: string) => {
     const fullPin = pinCode || pin.join('');
-    
+
     if (fullPin.length !== 4) {
       setError('Please enter your complete 4-digit PIN');
       shakePin();
@@ -88,7 +88,7 @@ export default function PinVerificationModal({
 
     try {
       const success = await onVerify(fullPin);
-      
+
       if (success) {
         // PIN verified successfully
         setPin(['', '', '', '']);
@@ -124,10 +124,12 @@ export default function PinVerificationModal({
       'Please contact support for PIN reset assistance.',
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Contact Support', onPress: () => {
-          // You can implement contact support functionality here
-          showAlert('Contact Support', 'Please call support at 1-800-XXX-XXXX', [{ text: 'OK' }], 'info');
-        }},
+        {
+          text: 'Contact Support', onPress: () => {
+            // You can implement contact support functionality here
+            showAlert('Contact Support', 'Please call support at 1-800-XXX-XXXX', [{ text: 'OK' }], 'info');
+          }
+        },
       ],
       'warning'
     );
@@ -158,7 +160,7 @@ export default function PinVerificationModal({
             {/* PIN Input */}
             <View style={styles.pinContainer}>
               <Text style={styles.pinLabel}>Enter your 4-digit PIN</Text>
-              <Animated.View 
+              <Animated.View
                 style={[
                   styles.pinInputContainer,
                   { transform: [{ translateX: shakeAnimation }] }
@@ -184,7 +186,7 @@ export default function PinVerificationModal({
                   />
                 ))}
               </Animated.View>
-              
+
               {error ? (
                 <Text style={styles.errorText}>{error}</Text>
               ) : null}
@@ -218,16 +220,16 @@ export default function PinVerificationModal({
                       'Are you sure you want to cancel this payment request?',
                       [
                         { text: 'No', style: 'cancel' },
-                        { 
-                          text: 'Yes, Cancel', 
+                        {
+                          text: 'Yes, Cancel',
                           style: 'destructive',
-                          onPress: onCancel 
+                          onPress: onCancel
                         },
                       ],
                       'warning'
                     );
                   }}
-                  // Don't disable during loading - allow cancellation anytime
+                // Don't disable during loading - allow cancellation anytime
                 >
                   <Text style={styles.cancelButtonText}>Cancel Payment</Text>
                 </TouchableOpacity>
@@ -244,7 +246,7 @@ export default function PinVerificationModal({
           </View>
         </View>
       </KeyboardAvoidingView>
-      
+
       {/* Styled Alert Component */}
       <AlertComponent />
     </Modal>

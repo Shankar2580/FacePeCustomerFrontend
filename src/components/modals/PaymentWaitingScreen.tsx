@@ -6,9 +6,10 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  View
+  View,
+  Platform
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import Colors from '@/constants/colors';
 import apiService, { PaymentRequest } from '@/services/api/apiService';
@@ -43,6 +44,7 @@ export default function PaymentWaitingScreen({
   const [expiresAt, setExpiresAt] = useState<string | null>(null);
   const pulseAnim = new Animated.Value(1);
   const { showAlert, AlertComponent } = useStyledAlert();
+  const insets = useSafeAreaInsets();
 
   // Reset state when visibility changes
   useEffect(() => {
@@ -270,7 +272,7 @@ export default function PaymentWaitingScreen({
         </ScrollView>
         
         {/* Footer Actions */}
-        <View style={styles.footer}>
+        <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 16) }]}>
           <View style={styles.actionsSection}>
             <TouchableOpacity 
               style={styles.cancelButton}

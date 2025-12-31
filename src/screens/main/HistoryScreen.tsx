@@ -15,6 +15,7 @@ import apiService from '@/services/api/apiService';
 import Colors from '@/constants/colors';
 import { useStyledAlert } from '@/components/ui/StyledAlert';
 import { sharedHeaderStyles } from '@/constants/layout';
+import FilterModal from '@/components/ui/FilterModal';
 
 interface Transaction {
   id: string;
@@ -26,6 +27,7 @@ interface Transaction {
 }
 
 type FilterType = 'all' | 'completed' | 'pending' | 'failed' | 'expired';
+type TimeFilter = 'all' | 'daily' | 'weekly' | 'monthly';
 
 export default function HistoryScreen() {
   const { user } = useAuth();
@@ -36,6 +38,8 @@ export default function HistoryScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [activeFilter, setActiveFilter] = useState<FilterType>('all');
+  const [activeTimeFilter, setActiveTimeFilter] = useState<TimeFilter>('all');
+  const [isFilterModalVisible, setIsFilterModalVisible] = useState(false);
 
   const fetchTransactions = async (statusFilter?: string, targetFilter?: FilterType) => {
     try {
@@ -47,11 +51,11 @@ export default function HistoryScreen() {
         // When fetching all transactions (no filter), store all and apply the target filter
         setTransactions(transactionData);
         const filterToApply = targetFilter || activeFilter;
-        filterTransactions(transactionData, filterToApply);
+        filterTransactions(transactionData, filterToApply, activeTimeFilter);
       } else {
-        // When fetching with specific filter, set both full list and filtered list
+        // When fetching with specific filter, apply both status and time filters
         setTransactions(transactionData);
-        setFilteredTransactions(transactionData);
+        filterTransactions(transactionData, activeFilter, activeTimeFilter);
       }
     } catch (error) {
       showAlert('Error', 'Failed to load transaction history', [{ text: 'OK' }], 'error');
@@ -70,25 +74,63 @@ export default function HistoryScreen() {
     setRefreshing(false);
   };
 
-  const filterTransactions = (transactionList: Transaction[], filter: FilterType) => {
-    if (filter === 'all') {
-      setFilteredTransactions(transactionList);
-    } else {
-      const filtered = transactionList.filter(t => 
+  const filterTransactionsByTime = (transactionList: Transaction[], timeFilter: TimeFilter): Transaction[] => {
+    if (timeFilter === 'all') return transactionList;
+
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    return transactionList.filter(t => {
+      const transactionDate = new Date(t.created_at);
+      
+      switch (timeFilter) {
+        case 'daily':
+          // Today's transactions
+          const transactionDay = new Date(transactionDate.getFullYear(), transactionDate.getMonth(), transactionDate.getDate());
+          return transactionDay.getTime() === today.getTime();
+        
+        case 'weekly':
+          // Last 7 days
+          const weekAgo = new Date(today);
+          weekAgo.setDate(weekAgo.getDate() - 7);
+          return transactionDate >= weekAgo;
+        
+        case 'monthly':
+          // Current month
+          return transactionDate.getMonth() === now.getMonth() && 
+                 transactionDate.getFullYear() === now.getFullYear();
+        
+        default:
+          return true;
+      }
+    });
+  };
+
+  const filterTransactions = (transactionList: Transaction[], filter: FilterType, timeFilter: TimeFilter) => {
+    // First apply status filter
+    let filtered = transactionList;
+    if (filter !== 'all') {
+      filtered = filtered.filter(t => 
         t.status.toLowerCase() === filter.toLowerCase()
       );
-      setFilteredTransactions(filtered);
     }
+    
+    // Then apply time filter
+    filtered = filterTransactionsByTime(filtered, timeFilter);
+    
+    setFilteredTransactions(filtered);
   };
 
   const handleFilterChange = (filter: FilterType) => {
     setActiveFilter(filter);
-    // Fix: For "all" filter, fetch all transactions, for others fetch with specific filter
-    if (filter === 'all') {
-      fetchTransactions(undefined, filter); // Pass the target filter to ensure correct filtering
-    } else {
-      fetchTransactions(filter);
-    }
+    // Apply filters on existing transactions
+    filterTransactions(transactions, filter, activeTimeFilter);
+  };
+
+  const handleTimeFilterChange = (timeFilter: TimeFilter) => {
+    setActiveTimeFilter(timeFilter);
+    // Apply filters on existing transactions
+    filterTransactions(transactions, activeFilter, timeFilter);
   };
 
   useEffect(() => {
@@ -172,6 +214,13 @@ export default function HistoryScreen() {
     { key: 'expired', label: 'Expired' },
   ];
 
+  const timeFilters: { key: TimeFilter; label: string; icon: string }[] = [
+    { key: 'all', label: 'All Time', icon: 'calendar-outline' },
+    { key: 'daily', label: 'Today', icon: 'today-outline' },
+    { key: 'weekly', label: 'This Week', icon: 'calendar-outline' },
+    { key: 'monthly', label: 'This Month', icon: 'calendar' },
+  ];
+
   if (loading) {
     return (
       <SafeAreaView style={[styles.container, { paddingTop: insets.top }]} edges={['left', 'right', 'bottom']}>
@@ -194,31 +243,15 @@ export default function HistoryScreen() {
         <Text style={styles.headerTitle}>Transaction History</Text>
       </LinearGradient>
 
-      {/* Filter Tabs */}
-      <View style={styles.filtersContainer}>
-        <ScrollView 
-          horizontal 
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.filtersContent}
+      {/* Filter Button */}
+      <View style={styles.filterTriggerContainer}>
+        <TouchableOpacity 
+          style={styles.filterTriggerButton} 
+          onPress={() => setIsFilterModalVisible(true)}
         >
-          {filters.map((filter) => (
-            <TouchableOpacity
-              key={filter.key}
-              style={[
-                styles.filterTab,
-                activeFilter === filter.key && styles.filterTabActive
-              ]}
-              onPress={() => handleFilterChange(filter.key)}
-            >
-              <Text style={[
-                styles.filterTabText,
-                activeFilter === filter.key && styles.filterTabTextActive
-              ]}>
-                {filter.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
+          <Ionicons name="filter" size={18} color="#374151" />
+          <Text style={styles.filterTriggerButtonText}>Filters</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Transactions List */}
@@ -304,6 +337,48 @@ export default function HistoryScreen() {
       
       {/* Styled Alert Component */}
       <AlertComponent />
+
+      {/* Filter Modal */}
+      <FilterModal 
+        visible={isFilterModalVisible} 
+        onClose={() => setIsFilterModalVisible(false)}
+      >
+        {/* Time Period Filter */}
+        <View style={styles.filterSection}>
+          <Text style={styles.filterTitle}>Time Period</Text>
+          <View style={styles.filterOptionGroup}>
+            {timeFilters.map((filter) => (
+              <TouchableOpacity
+                key={filter.key}
+                style={[styles.filterChip, activeTimeFilter === filter.key && styles.filterChipActive]}
+                onPress={() => handleTimeFilterChange(filter.key)}
+              >
+                <Text style={[styles.filterChipText, activeTimeFilter === filter.key && styles.filterChipTextActive]}>{filter.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        {/* Status Filter */}
+        <View style={styles.filterSection}>
+          <Text style={styles.filterTitle}>Status</Text>
+          <View style={styles.filterOptionGroup}>
+            {filters.map((filter) => (
+              <TouchableOpacity
+                key={filter.key}
+                style={[styles.filterChip, activeFilter === filter.key && styles.filterChipActive]}
+                onPress={() => handleFilterChange(filter.key)}
+              >
+                <Text style={[styles.filterChipText, activeFilter === filter.key && styles.filterChipTextActive]}>{filter.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        <TouchableOpacity style={styles.applyFiltersButton} onPress={() => setIsFilterModalVisible(false)}>
+          <Text style={styles.applyFiltersButtonText}>Apply Filters</Text>
+        </TouchableOpacity>
+      </FilterModal>
     </View>
   );
 }
@@ -347,36 +422,74 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#FFFFFF',
   },
-  filtersContainer: {
-    paddingVertical: 16,
-    backgroundColor: '#F8F7FF',
-    marginTop: -8,
-  },
-  filtersContent: {
+  filterTriggerContainer: {
     paddingHorizontal: 24,
-    gap: 12,
+    paddingVertical: 12,
+    backgroundColor: '#F8F7FF',
   },
-  filterTab: {
+  filterTriggerButton: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#FFFFFF',
     paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: Colors.background.card,
+    paddingVertical: 10,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: Colors.border.light,
+    borderColor: '#E5E7EB',
+    alignSelf: 'flex-start',
   },
-  filterTabActive: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
-  },
-  filterTabText: {
+  filterTriggerButtonText: {
     fontSize: 14,
     fontWeight: '600',
-    color: Colors.text.secondary,
+    color: '#374151',
   },
-  filterTabTextActive: {
-    color: Colors.text.white,
+  filterSection: {
+    marginBottom: 24,
+  },
+  filterTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#374151',
+    marginBottom: 16,
+  },
+  filterOptionGroup: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  filterChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    backgroundColor: '#F3F4F6',
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  filterChipActive: {
+    backgroundColor: '#8B5CF6',
+    borderColor: '#6B46C1',
+  },
+  filterChipText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#4B5563',
+  },
+  filterChipTextActive: {
+    color: '#FFFFFF',
+  },
+  applyFiltersButton: {
+    backgroundColor: '#6B46C1',
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginTop: 16,
+  },
+  applyFiltersButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
   content: {
     flex: 1,

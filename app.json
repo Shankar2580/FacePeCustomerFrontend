@@ -2,13 +2,13 @@
   "expo": {
     "name": "FP Merchant",
     "slug": "merchant-facepe",
-    "version": "1.0.0",
+    "version": "1.0.2",
     "orientation": "portrait",
-    "icon": "./assets/images/logo.png",
+    "icon": "./assets/images/logoUpdated.png",
     "scheme": "fpmerchant",
     "userInterfaceStyle": "light",
     "splash": {
-      "image": "./assets/images/logo.png",
+      "image": "./assets/images/logoUpdated.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
@@ -16,7 +16,7 @@
       "**/*"
     ],
     "ios": {
-      "icon": "./assets/images/logo.png",
+      "icon": "./assets/images/logoUpdated.png",
       "supportsTablet": true,
       "bundleIdentifier": "com.fpmerchant.app",
       "infoPlist": {
@@ -27,10 +27,10 @@
       }
     },
     "android": {
-      "icon": "./assets/images/logo.png",
+      "icon": "./assets/images/logoUpdated.png",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/logo.png",
-        "monochromeImage": "./assets/images/logo.png",
+        "foregroundImage": "./assets/images/logoUpdated.png",
+        "monochromeImage": "./assets/images/logoUpdated.png",
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
@@ -53,7 +53,7 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/logo.png",
+          "image": "./assets/images/logoUpdated.png",
           "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#ffffff"
@@ -67,7 +67,7 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "bfb5307b-51f9-4045-96e3-6405fc365e1f"
+        "projectId": "33bc462e-37f5-4062-9d0a-7cad1f4d9a2f"
       }
     }
   }

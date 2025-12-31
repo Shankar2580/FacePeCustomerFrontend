@@ -53,7 +53,7 @@ export default function ScanScreen() {
       // PIN verification already processed the payment
       setLoadingState(LoadingState.PAYMENT_SUCCESS);
       setLoadingMessage('Payment complete!');
-      
+
       // Show success alert after a brief delay
       setTimeout(() => {
         const amountValue = parseFloat(amount || '0');
@@ -109,7 +109,7 @@ export default function ScanScreen() {
     try {
       // Call API to cancel the payment request on the backend
       await apiService.merchant.cancelPaymentRequest(paymentRequestId);
-      
+
       showAlert(
         'Transaction Cancelled',
         'The payment request has been cancelled successfully.',
@@ -132,7 +132,7 @@ export default function ScanScreen() {
     // Close the waiting screen first
     setLoadingState(LoadingState.PAYMENT_SUCCESS);
     setLoadingMessage('Payment completed!');
-    
+
     // Show success alert after a brief delay
     setTimeout(() => {
       setLoadingState(LoadingState.IDLE); // Close success overlay
@@ -151,7 +151,7 @@ export default function ScanScreen() {
     setLoadingState(LoadingState.IDLE);
 
     const statusText = payment.status === 'DECLINED' ? 'declined' : 'failed';
-    
+
     // Show alert after a brief delay to allow screen transition
     setTimeout(() => {
       showAlert(
@@ -173,7 +173,7 @@ export default function ScanScreen() {
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={Colors.primary} />
           <Text style={styles.loadingText}>{loadingMessage}</Text>
-          
+
           {loadingState === LoadingState.PAYMENT_SUCCESS && (
             <View style={styles.successIcon}>
               <Ionicons name="checkmark-circle" size={48} color={Colors.success} />
@@ -196,7 +196,7 @@ export default function ScanScreen() {
         <Text style={styles.headerTitle}>Scan</Text>
       </LinearGradient>
 
-      <ScrollView 
+      <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -269,7 +269,7 @@ export default function ScanScreen() {
             <View style={styles.processingStatus}>
               <Ionicons name={loadingMessage.includes('complete') ? "checkmark-circle" : "send"} size={24} color={Colors.success} />
               <Text style={styles.processingText}>
-                {loadingMessage.includes('complete') 
+                {loadingMessage.includes('complete')
                   ? 'Payment completed successfully!'
                   : 'Payment request sent to customer!'}
               </Text>
@@ -291,7 +291,7 @@ export default function ScanScreen() {
         onPaymentSuccess={handlePaymentSuccess}
         onPaymentFailure={handlePaymentFailure}
       />
-      
+
       {/* Styled Alert Component */}
       <AlertComponent />
     </View>

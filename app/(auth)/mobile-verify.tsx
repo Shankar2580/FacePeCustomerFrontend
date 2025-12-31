@@ -1,3 +1,3 @@
-import MobileVerifyScreen from '@/screens/auth/MobileVerifyScreen';
+import PhoneVerificationScreen from '@/screens/auth/PhoneVerificationScreen';
 
-export default MobileVerifyScreen;
+export default PhoneVerificationScreen;

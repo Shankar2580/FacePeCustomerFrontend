@@ -19,8 +19,13 @@ import { ERROR_MESSAGES, SUCCESS_MESSAGES } from '@/constants/api';
 import apiService, { FaceVerificationResponse, PinVerificationRequest } from '@/services/api/apiService';
 import PinVerificationModal from '../modals/PinVerificationModal';
 import { useStyledAlert } from '@/components/ui/StyledAlert';
+import { getUserFriendlyErrorMessage } from '@/utils/errorHandler';
+import { wp, hp, scale, fontScale } from '@/utils/responsive';
 
 const { width, height } = Dimensions.get('window');
+
+// Circle size: 65% of screen width for consistent look on all devices
+const CIRCLE_SIZE = wp(65);
 
 interface FaceVerificationComponentProps {
   onVerificationSuccess: (userId: string, faceScanId: string, paymentAlreadyProcessed?: boolean, requestId?: string) => void;
@@ -68,21 +73,21 @@ export default function FaceVerificationComponent({
   const updateState = useCallback((updates: Partial<VerificationState>) => {
     setState(prev => {
       const newState = { ...prev, ...updates };
-      
+
       // Communicate loading state changes to parent
       if (onLoadingStateChange) {
         const isLoading = newState.loading || newState.pinVerificationLoading;
         let message = '';
-        
+
         if (newState.loading) {
           message = 'Verifying face...';
         } else if (newState.pinVerificationLoading) {
           message = 'Verifying PIN...';
         }
-        
+
         onLoadingStateChange(isLoading, message);
       }
-      
+
       return newState;
     });
   }, [onLoadingStateChange]);
@@ -97,7 +102,7 @@ export default function FaceVerificationComponent({
       verifiedUserName: undefined,
       pinVerificationLoading: false,
     });
-    
+
     // Notify parent that loading is complete
     if (onLoadingStateChange) {
       onLoadingStateChange(false);
@@ -175,8 +180,8 @@ export default function FaceVerificationComponent({
           'FP Merchant needs camera permission to scan customer faces for payment verification.',
           [
             { text: 'Deny', style: 'cancel' },
-            { 
-              text: 'Allow', 
+            {
+              text: 'Allow',
               onPress: async () => {
                 const retryPermission = await requestPermission();
                 if (retryPermission.granted) {
@@ -325,7 +330,7 @@ export default function FaceVerificationComponent({
           return;
         }
       }
-      
+
       // If success but no clear indication, treat as successful payment request creation
       const requestId = data.request?.request_id || data.request_id;
       updateState({
@@ -348,7 +353,7 @@ export default function FaceVerificationComponent({
 
     // Condition C: Check if message indicates PIN is needed (fallback for backend inconsistency)
     if (data.success && data.face_scan_id && (
-      data.message?.toLowerCase().includes('multiple') || 
+      data.message?.toLowerCase().includes('multiple') ||
       data.message?.toLowerCase().includes('similar') ||
       data.message?.toLowerCase().includes('pin') ||
       data.message?.toLowerCase().includes('verification required')
@@ -432,7 +437,7 @@ export default function FaceVerificationComponent({
 
   const handleFaceVerificationError = async (error: any) => {
     let errorMessage = ERROR_MESSAGES.FACE_SCAN_FAILED;
-    
+
     if (error.message?.includes('timeout')) {
       errorMessage = ERROR_MESSAGES.TIMEOUT_ERROR;
     } else if (error.message?.includes('Network')) {
@@ -440,7 +445,7 @@ export default function FaceVerificationComponent({
     }
 
     updateState({ error: errorMessage });
-    
+
     showAlert(
       'Face Scan Failed',
       errorMessage,
@@ -449,7 +454,7 @@ export default function FaceVerificationComponent({
       ],
       'error'
     );
-    
+
     // Defer parent state update to avoid React warning
     setTimeout(() => {
       onVerificationError(errorMessage);
@@ -458,7 +463,7 @@ export default function FaceVerificationComponent({
 
   const handlePinVerification = async (pin: string): Promise<boolean> => {
     updateState({ pinVerificationLoading: true });
-    
+
     try {
       const pinRequest: any = {
         face_scan_id: state.faceScanId,
@@ -494,7 +499,7 @@ export default function FaceVerificationComponent({
               requestId
             );
           }, 1000);
-          
+
           return true;
         } else {
           updateState({ pinVerificationLoading: false });
@@ -506,17 +511,14 @@ export default function FaceVerificationComponent({
       }
     } catch (error: any) {
       // Handle specific HTTP error codes
-      if (error.response) {
-        if (error.response.status === 422) {
-          showAlert(
-            'Validation Error',
-            `Request validation failed: ${error.response.data?.detail || 'Invalid data format'}`,
-            [{ text: 'OK' }],
-            'error'
-          );
-        }
-      }
-      
+      const errorMessage = getUserFriendlyErrorMessage(error, 'Payment verification failed. Please try again.');
+      showAlert(
+        'Verification Error',
+        errorMessage,
+        [{ text: 'OK' }],
+        'error'
+      );
+
       updateState({ pinVerificationLoading: false });
       return false;
     }
@@ -597,7 +599,7 @@ export default function FaceVerificationComponent({
         <View style={styles.successContainer}>
           <Ionicons name="checkmark-circle" size={20} color={Colors.success} />
           <Text style={styles.successText}>
-            {state.verifiedUserName 
+            {state.verifiedUserName
               ? `Welcome, ${state.verifiedUserName}!`
               : 'Verification successful!'
             }
@@ -649,35 +651,29 @@ export default function FaceVerificationComponent({
             <View style={styles.cameraHeaderRight} />
           </LinearGradient>
 
-          {/* Camera Preview with Blue Box and Oval Frame */}
+          {/* Camera Preview with Blue Box and Circle Frame */}
           <View style={styles.cameraContainer}>
             <View style={styles.blueBoxContainer}>
-              {/* Top Blue Section */}
-              <View style={styles.topBlueBar} />
-              
-              {/* Middle Row with Oval */}
-              <View style={styles.middleRow}>
-                {/* Left Blue Bar */}
-                <View style={styles.sideBlueBar} />
-                
-                {/* Oval Container with Camera */}
-                <View style={styles.ovalCameraContainer}>
-                  <CameraView
-                    ref={cameraRef}
-                    style={styles.cameraViewOval}
-                    facing="front"
-                  />
-                  
-                  {/* Circle Frame Border */}
-                  <View style={styles.circleFrameBorder} />
-                </View>
-                
-                {/* Right Blue Bar */}
-                <View style={styles.sideBlueBar} />
+              {/* Circle Container with Camera - Centered in blue box */}
+              <View style={styles.circleWrapper}>
+                {/* Camera View - Circular */}
+                <CameraView
+                  ref={cameraRef}
+                  style={[styles.cameraViewCircle, {
+                    width: CIRCLE_SIZE,
+                    height: CIRCLE_SIZE,
+                    borderRadius: CIRCLE_SIZE / 2,
+                  }]}
+                  facing="front"
+                />
+
+                {/* Circle Frame Border */}
+                <View style={[styles.circleFrameBorder, {
+                  width: CIRCLE_SIZE,
+                  height: CIRCLE_SIZE,
+                  borderRadius: CIRCLE_SIZE / 2,
+                }]} pointerEvents="none" />
               </View>
-              
-              {/* Bottom Blue Section */}
-              <View style={styles.bottomBlueBar} />
             </View>
           </View>
 
@@ -702,7 +698,7 @@ export default function FaceVerificationComponent({
           </View>
         </View>
       </Modal>
-      
+
       {/* Styled Alert Component */}
       <AlertComponent />
     </View>
@@ -852,61 +848,36 @@ const styles = StyleSheet.create({
   cameraContainer: {
     flex: 1,
     backgroundColor: '#FFFFFF',
-    paddingHorizontal: 30,
-    paddingVertical: 50,
+    paddingHorizontal: wp(5),
+    paddingVertical: hp(3),
     justifyContent: 'center',
     alignItems: 'center',
   },
   blueBoxContainer: {
-    width: '100%',
-    flex: 1,
-    maxHeight: 600,
-    borderRadius: 24,
+    width: wp(85), // 85% of screen width
+    aspectRatio: 0.75, // Height is 1.33x width (taller than wide)
+    maxHeight: hp(55), // Cap at 55% of screen height
+    borderRadius: scale(24),
     overflow: 'hidden',
     backgroundColor: '#3B82F6',
+    justifyContent: 'center', // Center circle vertically
+    alignItems: 'center', // Center circle horizontally
   },
-  topBlueBar: {
-    height: 70,
-    backgroundColor: '#3B82F6',
-    width: '100%',
-  },
-  middleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  sideBlueBar: {
-    width: 40,
-    height: 400,
-    backgroundColor: '#3B82F6',
-  },
-  ovalCameraContainer: {
-    width: 280,
-    height: 400,
+  circleWrapper: {
+    width: CIRCLE_SIZE,
+    height: CIRCLE_SIZE,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'transparent',
   },
-  cameraViewOval: {
+  cameraViewCircle: {
     position: 'absolute',
-    width: 280,
-    height: 280,
     overflow: 'hidden',
-    borderRadius: 140,
   },
   circleFrameBorder: {
     position: 'absolute',
-    width: 280,
-    height: 280,
     borderWidth: 4,
     borderColor: '#FFFFFF',
     backgroundColor: 'transparent',
-    borderRadius: 140,
-  },
-  bottomBlueBar: {
-    height: 70,
-    backgroundColor: '#3B82F6',
-    width: '100%',
   },
   buttonContainer: {
     backgroundColor: '#FFFFFF',
